@@ -59,9 +59,7 @@ export function buildRequestEditorHtml(
     .method-select { width: 110px; }
     .url-input { flex: 1; }
     .action-group { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-    .save-group { display: inline-flex; border: 1px solid #d0d0d0; border-radius: 4px; overflow: hidden; background: #ffffff; }
-    .save-group .btn { border: 0; border-radius: 0; background: transparent; }
-    .save-group .btn + .btn { border-left: 1px solid #d0d0d0; }
+    .save-action-select { width: 120px; }
     .name-row { margin-top: 10px; display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; }
     .request-header { margin-bottom: 12px; }
     .request-header .name-row { margin-top: 0; }
@@ -80,8 +78,59 @@ export function buildRequestEditorHtml(
     .tab-panel.active { display: block; }
     .toolbar { margin-bottom: 8px; display: flex; gap: 8px; }
     .toolbar-spacer { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-    .find-replace-wrap { margin-bottom: 8px; display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto auto auto auto minmax(90px, auto); gap: 6px; align-items: center; }
-    .find-input { padding: 6px 8px; }
+    .raw-body-wrap { position: relative; }
+    .find-replace-wrap {
+      margin-bottom: 0;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, #cfcfcf));
+      background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #ffffff));
+      border-radius: 4px;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: min(520px, calc(100% - 16px));
+      z-index: 20;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+    .find-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .find-input {
+      height: 26px;
+      padding: 4px 8px;
+      border-radius: 3px;
+      border: 1px solid var(--vscode-input-border, #cfcfcf);
+      background: var(--vscode-input-background, #ffffff);
+      color: var(--vscode-input-foreground, inherit);
+    }
+    .find-row .find-input { flex: 1; min-width: 0; }
+    .find-btn-group {
+      display: inline-flex;
+      border: 1px solid var(--vscode-input-border, #cfcfcf);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .find-btn {
+      border: 0;
+      border-right: 1px solid var(--vscode-input-border, #cfcfcf);
+      border-radius: 0;
+      min-width: 30px;
+      padding: 4px 8px;
+      line-height: 1;
+      background: var(--vscode-editorWidget-background, var(--vscode-input-background, #ffffff));
+      color: var(--vscode-foreground, inherit);
+    }
+    .find-btn:last-child { border-right: 0; }
+    .find-btn:hover { background: var(--vscode-toolbar-hoverBackground, #f3f3f3); }
+    .find-close-btn { min-width: 28px; font-size: 14px; font-weight: 600; }
+    .find-status {
+      min-width: 80px;
+      text-align: right;
+      margin-left: auto;
+      white-space: nowrap;
+    }
     input, select, textarea, button { font-family: inherit; font-size: 13px; }
     input, select, textarea { width: 100%; padding: 8px; border: 1px solid #cfcfcf; border-radius: 4px; box-sizing: border-box; }
     textarea { min-height: 220px; resize: none; }
@@ -109,7 +158,28 @@ export function buildRequestEditorHtml(
     .response-tab.active { border-bottom-color: #007acc; color: #007acc; font-weight: 600; }
     .response-panel { display: none; margin-top: 10px; }
     .response-panel.active { display: block; }
-    .response-pre { margin: 0; padding: 10px; background: var(--vscode-editor-background, #1e1e1e); color: var(--vscode-editor-foreground, #d4d4d4); border: 1px solid var(--vscode-input-border, #3c3c3c); border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; min-height: 100px; line-height: 1.5; }
+    .response-body-wrap { position: relative; }
+    .response-find-widget {
+      top: 8px;
+      right: 8px;
+      width: min(440px, calc(100% - 16px));
+      z-index: 15;
+    }
+    .response-pre {
+      margin: 0;
+      padding: 10px;
+      background: #f7f8fa;
+      color: #1f2328;
+      border: 1px solid #d0d7de;
+      border-radius: 4px;
+      overflow-x: auto;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 100px;
+      max-height: 56vh;
+      line-height: 1.5;
+    }
     .response-empty { font-size: 12px; color: #666; }
     .json-status { font-size: 12px; color: #666; }
     .json-status.error { color: #d32f2f; font-weight: 700; }
@@ -148,11 +218,12 @@ export function buildRequestEditorHtml(
     <input type="text" id="baseUrl" class="url-input" value="${escapeHtml(baseUrl)}" placeholder="https://api.example.com/resource">
     <div class="action-group">
       <button class="btn btn-primary" id="sendBtn">Send</button>
+      <select id="saveActionSelect" class="save-action-select" aria-label="保存操作">
+        <option value="" selected disabled hidden>Save ▾</option>
+        <option value="save">Save</option>
+        <option value="saveAs">Save As</option>
+      </select>
       <button class="btn" id="codeBtn">Code</button>
-      <div class="save-group">
-        <button class="btn" id="saveBtn">Save</button>
-        <button class="btn" id="saveAsBtn">Save As</button>
-      </div>
     </div>
   </div>
 
@@ -206,20 +277,29 @@ export function buildRequestEditorHtml(
         <option value="x-www-form-urlencoded" ${(request.bodyMode ?? 'raw') === 'x-www-form-urlencoded' ? 'selected' : ''}>x-www-form-urlencoded</option>
       </select>
       <div id="rawBodyActions" class="toolbar-spacer">
-        <button class="btn" id="copyRequestBodyBtn" type="button">Copy Body</button>
         <button class="btn" id="formatJsonBtn" type="button">Format JSON</button>
+        <button class="btn" id="copyRequestBodyBtn" type="button">Copy Body</button>
         <span id="jsonStatus" class="json-status"></span>
       </div>
     </div>
-    <div id="rawBodySection">
-      <div id="jsonFindReplace" class="find-replace-wrap">
-        <input id="findText" class="find-input" type="text" placeholder="搜索 JSON 文本">
-        <input id="replaceText" class="find-input" type="text" placeholder="替换为">
-        <button class="btn" id="findPrevBtn" type="button">Prev</button>
-        <button class="btn" id="findNextBtn" type="button">Next</button>
-        <button class="btn" id="replaceOneBtn" type="button">Replace</button>
-        <button class="btn" id="replaceAllBtn" type="button">Replace All</button>
-        <span id="findStatus" class="json-status"></span>
+    <div id="rawBodySection" class="raw-body-wrap">
+      <div id="jsonFindReplace" class="find-replace-wrap hidden">
+        <div class="find-row">
+          <input id="findText" class="find-input" type="text" placeholder="查找">
+          <div class="find-btn-group">
+            <button class="btn find-btn" id="findPrevBtn" type="button" aria-label="上一项">↑</button>
+            <button class="btn find-btn" id="findNextBtn" type="button" aria-label="下一项">↓</button>
+          </div>
+          <span id="findStatus" class="json-status find-status"></span>
+          <button class="btn find-btn find-close-btn" id="findCloseBtn" type="button" aria-label="关闭查找">×</button>
+        </div>
+        <div class="find-row">
+          <input id="replaceText" class="find-input" type="text" placeholder="替换">
+          <div class="find-btn-group">
+            <button class="btn find-btn" id="replaceOneBtn" type="button">替换</button>
+            <button class="btn find-btn" id="replaceAllBtn" type="button">全部替换</button>
+          </div>
+        </div>
       </div>
       <textarea id="body" spellcheck="false" placeholder='请输入 JSON 请求体，例如 {"name":"free-request"}'>${escapeHtml(request.body || '')}</textarea>
       <div id="bodyResizeHandle" class="body-resize-handle" title="拖动调整 JSON 输入框高度"></div>
@@ -291,7 +371,20 @@ export function buildRequestEditorHtml(
           <button class="btn" id="respRawBtn" type="button">Raw</button>
           <span id="respJsonHint" class="json-status"></span>
         </div>
-        <pre id="respBody" class="response-pre"></pre>
+        <div class="response-body-wrap">
+          <div id="respFindWidget" class="find-replace-wrap response-find-widget hidden">
+            <div class="find-row">
+              <input id="respFindText" class="find-input" type="text" placeholder="查找响应内容">
+              <div class="find-btn-group">
+                <button class="btn find-btn" id="respFindPrevBtn" type="button" aria-label="上一项">↑</button>
+                <button class="btn find-btn" id="respFindNextBtn" type="button" aria-label="下一项">↓</button>
+              </div>
+              <span id="respFindStatus" class="json-status find-status"></span>
+              <button class="btn find-btn find-close-btn" id="respFindCloseBtn" type="button" aria-label="关闭查找">×</button>
+            </div>
+          </div>
+          <pre id="respBody" class="response-pre"></pre>
+        </div>
       </section>
       <section id="resp-panel-headers" class="response-panel">
         <pre id="respHeaders" class="response-pre"></pre>
@@ -312,6 +405,129 @@ export function buildRequestEditorHtml(
     let responseBodyPrettyText = '';
     let responseBodyIsJson = false;
     let responseBodyViewMode = 'pretty';
+    let isFindWidgetVisible = false;
+    let isResponseFindWidgetVisible = false;
+    let lastResponseFindQuery = '';
+    let lastResponseFindIndex = -1;
+
+    function walkTextNodes(root) {
+      const nodes = [];
+      if (!root) {
+        return nodes;
+      }
+
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let current = walker.nextNode();
+      while (current) {
+        nodes.push(current);
+        current = walker.nextNode();
+      }
+      return nodes;
+    }
+
+    function ensureRangeVisibleInScrollableContainer(container, range) {
+      if (!container || !range) {
+        return;
+      }
+
+      const rects = range.getClientRects();
+      const rangeRect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const padding = 16;
+      const canScrollContainer = container.scrollHeight > container.clientHeight || container.scrollWidth > container.clientWidth;
+
+      if (canScrollContainer) {
+        if (rangeRect.top < containerRect.top + padding) {
+          container.scrollTop -= (containerRect.top + padding - rangeRect.top);
+        } else if (rangeRect.bottom > containerRect.bottom - padding) {
+          container.scrollTop += (rangeRect.bottom - (containerRect.bottom - padding));
+        }
+
+        if (rangeRect.left < containerRect.left + padding) {
+          container.scrollLeft -= (containerRect.left + padding - rangeRect.left);
+        } else if (rangeRect.right > containerRect.right - padding) {
+          container.scrollLeft += (rangeRect.right - (containerRect.right - padding));
+        }
+        return;
+      }
+
+      container.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+
+    function ensureTextareaSelectionVisible(textareaEl) {
+      if (!textareaEl) {
+        return;
+      }
+
+      const value = textareaEl.value || '';
+      const selectionStart = Math.max(0, textareaEl.selectionStart || 0);
+      const beforeText = value.slice(0, selectionStart);
+      const lastLineBreak = beforeText.lastIndexOf('\\n');
+      const lineIndex = beforeText.split('\\n').length - 1;
+      const columnIndex = lastLineBreak === -1 ? beforeText.length : beforeText.length - lastLineBreak - 1;
+
+      const style = window.getComputedStyle(textareaEl);
+      const parsedLineHeight = Number.parseFloat(style.lineHeight || '');
+      const lineHeight = Number.isFinite(parsedLineHeight) && parsedLineHeight > 0
+        ? parsedLineHeight
+        : 20;
+      const parsedFontSize = Number.parseFloat(style.fontSize || '');
+      const approxCharWidth = (Number.isFinite(parsedFontSize) && parsedFontSize > 0 ? parsedFontSize : 13) * 0.62;
+
+      const targetTop = Math.max(0, lineIndex * lineHeight - textareaEl.clientHeight / 2);
+      const targetLeft = Math.max(0, columnIndex * approxCharWidth - textareaEl.clientWidth / 2);
+
+      textareaEl.scrollTop = targetTop;
+      textareaEl.scrollLeft = targetLeft;
+    }
+
+    function setSelectionInElementByOffset(container, start, end) {
+      const textNodes = walkTextNodes(container);
+      if (textNodes.length === 0) {
+        return false;
+      }
+
+      let offset = 0;
+      let startNode = null;
+      let endNode = null;
+      let startOffset = 0;
+      let endOffset = 0;
+
+      for (const node of textNodes) {
+        const textLength = node.textContent?.length ?? 0;
+        const nextOffset = offset + textLength;
+
+        if (!startNode && start >= offset && start <= nextOffset) {
+          startNode = node;
+          startOffset = Math.max(0, start - offset);
+        }
+
+        if (!endNode && end >= offset && end <= nextOffset) {
+          endNode = node;
+          endOffset = Math.max(0, end - offset);
+        }
+
+        offset = nextOffset;
+      }
+
+      if (!startNode || !endNode) {
+        return false;
+      }
+
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+
+      const selection = window.getSelection();
+      if (!selection) {
+        return false;
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+      ensureRangeVisibleInScrollableContainer(container, range);
+      return true;
+    }
 
         function populateEnvGroupSelect() {
           const envGroupSelectEl = document.getElementById('envGroupSelect');
@@ -493,6 +709,10 @@ export function buildRequestEditorHtml(
       document.querySelectorAll('.response-panel').forEach((panel) => {
         panel.classList.toggle('active', panel.id === ('resp-panel-' + tabName));
       });
+
+      if (tabName !== 'body') {
+        hideResponseFindWidget();
+      }
     }
 
     function updateJsonStatus(message, isError) {
@@ -566,10 +786,155 @@ export function buildRequestEditorHtml(
       }
 
       rawBodyActionsEl.classList.toggle('hidden', bodyModeEl.value !== 'raw');
-      jsonFindReplaceEl.classList.toggle('hidden', bodyModeEl.value !== 'raw');
       if (bodyModeEl.value !== 'raw') {
+        isFindWidgetVisible = false;
+        jsonFindReplaceEl.classList.add('hidden');
         updateJsonStatus('', false);
+      } else {
+        jsonFindReplaceEl.classList.toggle('hidden', !isFindWidgetVisible);
       }
+    }
+
+    function showFindWidget() {
+      const bodyModeEl = document.getElementById('bodyMode');
+      const bodyEl = document.getElementById('body');
+      const findTextEl = document.getElementById('findText');
+      const jsonFindReplaceEl = document.getElementById('jsonFindReplace');
+      if (!bodyModeEl || !bodyEl || !findTextEl || !jsonFindReplaceEl || bodyModeEl.value !== 'raw') {
+        return;
+      }
+
+      const selectedText = bodyEl.value.slice(bodyEl.selectionStart, bodyEl.selectionEnd);
+      if (selectedText && !findTextEl.value) {
+        findTextEl.value = selectedText;
+      }
+
+      isFindWidgetVisible = true;
+      jsonFindReplaceEl.classList.remove('hidden');
+      findTextEl.focus();
+      findTextEl.select();
+    }
+
+    function hideFindWidget() {
+      const jsonFindReplaceEl = document.getElementById('jsonFindReplace');
+      const bodyEl = document.getElementById('body');
+      if (!jsonFindReplaceEl) {
+        return;
+      }
+
+      isFindWidgetVisible = false;
+      jsonFindReplaceEl.classList.add('hidden');
+      updateFindStatus('', false);
+      bodyEl?.focus();
+    }
+
+    function updateResponseFindStatus(message, isError) {
+      const statusEl = document.getElementById('respFindStatus');
+      if (!statusEl) {
+        return;
+      }
+      statusEl.textContent = message || '';
+      statusEl.classList.toggle('error', !!isError);
+    }
+
+    function showResponseFindWidget() {
+      const responseContentEl = document.getElementById('responseContent');
+      const widgetEl = document.getElementById('respFindWidget');
+      const inputEl = document.getElementById('respFindText');
+      if (!responseContentEl || !widgetEl || !inputEl || responseContentEl.classList.contains('hidden')) {
+        return;
+      }
+
+      switchResponseTab('body');
+      isResponseFindWidgetVisible = true;
+      widgetEl.classList.remove('hidden');
+      inputEl.focus();
+      inputEl.select();
+    }
+
+    function hideResponseFindWidget() {
+      const widgetEl = document.getElementById('respFindWidget');
+      if (!widgetEl) {
+        return;
+      }
+
+      isResponseFindWidgetVisible = false;
+      widgetEl.classList.add('hidden');
+      updateResponseFindStatus('', false);
+    }
+
+    function countMatches(source, query) {
+      if (!query) {
+        return 0;
+      }
+      let count = 0;
+      let from = 0;
+      while (true) {
+        const index = source.indexOf(query, from);
+        if (index === -1) {
+          break;
+        }
+        count += 1;
+        from = index + query.length;
+      }
+      return count;
+    }
+
+    function findInResponse(forward) {
+      const responseBodyEl = document.getElementById('respBody');
+      const findTextEl = document.getElementById('respFindText');
+      if (!responseBodyEl || !findTextEl) {
+        return false;
+      }
+
+      const query = findTextEl.value;
+      if (!query) {
+        updateResponseFindStatus('请输入要搜索的文本', true);
+        findTextEl.focus();
+        return false;
+      }
+
+      const source = responseBodyEl.textContent || '';
+      if (!source) {
+        updateResponseFindStatus('当前响应为空', true);
+        return false;
+      }
+
+      if (query !== lastResponseFindQuery) {
+        lastResponseFindQuery = query;
+        lastResponseFindIndex = -1;
+      }
+
+      const fromIndex = forward
+        ? Math.max(0, lastResponseFindIndex + 1)
+        : Math.max(0, lastResponseFindIndex - 1);
+
+      let matchIndex = forward
+        ? source.indexOf(query, fromIndex)
+        : source.lastIndexOf(query, fromIndex);
+
+      if (matchIndex === -1) {
+        matchIndex = forward
+          ? source.indexOf(query, 0)
+          : source.lastIndexOf(query);
+      }
+
+      if (matchIndex === -1) {
+        updateResponseFindStatus('未找到匹配', true);
+        return false;
+      }
+
+      const selected = setSelectionInElementByOffset(responseBodyEl, matchIndex, matchIndex + query.length);
+      if (!selected) {
+        updateResponseFindStatus('定位失败', true);
+        return false;
+      }
+
+      lastResponseFindIndex = matchIndex;
+      const total = countMatches(source, query);
+      const current = countMatches(source.slice(0, matchIndex + query.length), query);
+      updateResponseFindStatus(current + '/' + total, false);
+      return true;
     }
 
     function updateFindStatus(message, isError) {
@@ -620,6 +985,7 @@ export function buildRequestEditorHtml(
 
       bodyEl.focus();
       bodyEl.setSelectionRange(index, index + query.length);
+      ensureTextareaSelectionVisible(bodyEl);
       updateFindStatus('已定位到匹配项', false);
       return true;
     }
@@ -653,6 +1019,7 @@ export function buildRequestEditorHtml(
       bodyEl.value = bodyEl.value.slice(0, start) + replacement + bodyEl.value.slice(end);
       bodyEl.focus();
       bodyEl.setSelectionRange(start, start + replacement.length);
+      ensureTextareaSelectionVisible(bodyEl);
       bodyEl.dispatchEvent(new Event('input'));
       updateFindStatus('已替换当前匹配', false);
     }
@@ -690,6 +1057,9 @@ export function buildRequestEditorHtml(
       }
 
       bodyEl.value = source.split(query).join(replaceTextEl.value);
+      bodyEl.focus();
+      bodyEl.setSelectionRange(0, 0);
+      ensureTextareaSelectionVisible(bodyEl);
       bodyEl.dispatchEvent(new Event('input'));
       updateFindStatus('已替换 ' + count + ' 处', false);
     }
@@ -734,23 +1104,48 @@ export function buildRequestEditorHtml(
         .replace(/'/g, '&#39;');
     }
 
-    function highlightJsonText(text) {
-      const escaped = escapeHtmlForDisplay(text);
-      return escaped.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\\"])*"\s*:?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g, (match) => {
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) {
-            return '<span class="json-key">' + match + '</span>';
-          }
-          return '<span class="json-string">' + match + '</span>';
+    function renderJsonPrimitive(value) {
+      if (value === null) {
+        return '<span class="json-null">null</span>';
+      }
+      if (typeof value === 'number') {
+        return '<span class="json-number">' + String(value) + '</span>';
+      }
+      if (typeof value === 'boolean') {
+        return '<span class="json-boolean">' + String(value) + '</span>';
+      }
+      return '<span class="json-string">"' + escapeHtmlForDisplay(String(value)) + '"</span>';
+    }
+
+    function renderJsonValue(value, indentLevel) {
+      const indentUnit = '  ';
+      const currentIndent = indentUnit.repeat(indentLevel);
+      const nextIndent = indentUnit.repeat(indentLevel + 1);
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          return '[]';
         }
-        if (/true|false/.test(match)) {
-          return '<span class="json-boolean">' + match + '</span>';
+        const items = value.map((item) => nextIndent + renderJsonValue(item, indentLevel + 1));
+        return '[\\n' + items.join(',\\n') + '\\n' + currentIndent + ']';
+      }
+
+      if (value && typeof value === 'object') {
+        const entries = Object.entries(value);
+        if (entries.length === 0) {
+          return '{}';
         }
-        if (/null/.test(match)) {
-          return '<span class="json-null">' + match + '</span>';
-        }
-        return '<span class="json-number">' + match + '</span>';
-      });
+        const lines = entries.map(([key, item]) => {
+          return (
+            nextIndent +
+            '<span class="json-key">"' + escapeHtmlForDisplay(key) + '"</span>: ' +
+            renderJsonValue(item, indentLevel + 1)
+          );
+        });
+        return '{\\n' + lines.join(',\\n') + '\\n' + currentIndent + '}';
+      }
+
+      return renderJsonPrimitive(value);
     }
 
     function updateResponseBodyView() {
@@ -762,7 +1157,15 @@ export function buildRequestEditorHtml(
       const shouldUsePretty = responseBodyIsJson && responseBodyViewMode === 'pretty';
       const selectedText = shouldUsePretty ? responseBodyPrettyText : responseBodyRawText;
       if (responseBodyIsJson) {
-        bodyEl.innerHTML = highlightJsonText(selectedText);
+        if (shouldUsePretty) {
+          try {
+            bodyEl.innerHTML = renderJsonValue(JSON.parse(selectedText), 0);
+          } catch {
+            bodyEl.textContent = selectedText;
+          }
+        } else {
+          bodyEl.textContent = selectedText;
+        }
       } else {
         bodyEl.textContent = selectedText;
       }
@@ -1010,8 +1413,7 @@ export function buildRequestEditorHtml(
     const addParamBtn = document.getElementById('addParamBtn');
     const addHeaderBtn = document.getElementById('addHeaderBtn');
     const addBodyItemBtn = document.getElementById('addBodyItemBtn');
-    const saveBtn = document.getElementById('saveBtn');
-    const saveAsBtn = document.getElementById('saveAsBtn');
+    const saveActionSelect = document.getElementById('saveActionSelect');
     const codeBtn = document.getElementById('codeBtn');
     const bodyModeEl = document.getElementById('bodyMode');
     const bodyEl = document.getElementById('body');
@@ -1023,6 +1425,11 @@ export function buildRequestEditorHtml(
     const findNextBtn = document.getElementById('findNextBtn');
     const replaceOneBtn = document.getElementById('replaceOneBtn');
     const replaceAllBtn = document.getElementById('replaceAllBtn');
+    const findCloseBtn = document.getElementById('findCloseBtn');
+    const respFindTextEl = document.getElementById('respFindText');
+    const respFindPrevBtn = document.getElementById('respFindPrevBtn');
+    const respFindNextBtn = document.getElementById('respFindNextBtn');
+    const respFindCloseBtn = document.getElementById('respFindCloseBtn');
     const authTypeEl = document.getElementById('authType');
     const pathRequestNameEl = document.getElementById('pathRequestName');
     const copyResponseBodyBtn = document.getElementById('copyResponseBodyBtn');
@@ -1032,8 +1439,15 @@ export function buildRequestEditorHtml(
     addParamBtn?.addEventListener('click', () => createRow('paramsBody', { key: '', value: '', enabled: true }));
     addHeaderBtn?.addEventListener('click', () => createRow('headersBody', { key: '', value: '', enabled: true }));
     addBodyItemBtn?.addEventListener('click', () => createRow('bodyItemsBody', { key: '', value: '', enabled: true }));
-    saveBtn?.addEventListener('click', saveRequest);
-    saveAsBtn?.addEventListener('click', saveAsRequest);
+    saveActionSelect?.addEventListener('change', () => {
+      const action = saveActionSelect.value;
+      if (action === 'save') {
+        saveRequest();
+      } else if (action === 'saveAs') {
+        saveAsRequest();
+      }
+      saveActionSelect.selectedIndex = 0;
+    });
     codeBtn?.addEventListener('click', openCodePreview);
     bodyModeEl?.addEventListener('change', toggleBodyMode);
     bodyEl?.addEventListener('input', () => validateRawJson(false));
@@ -1052,6 +1466,7 @@ export function buildRequestEditorHtml(
     findNextBtn?.addEventListener('click', () => findInBody(true));
     replaceOneBtn?.addEventListener('click', replaceCurrentInBody);
     replaceAllBtn?.addEventListener('click', replaceAllInBody);
+    findCloseBtn?.addEventListener('click', hideFindWidget);
     findTextEl?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -1062,6 +1477,58 @@ export function buildRequestEditorHtml(
       if (event.key === 'Enter') {
         event.preventDefault();
         replaceCurrentInBody();
+      }
+    });
+    respFindPrevBtn?.addEventListener('click', () => findInResponse(false));
+    respFindNextBtn?.addEventListener('click', () => findInResponse(true));
+    respFindCloseBtn?.addEventListener('click', hideResponseFindWidget);
+    respFindTextEl?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        findInResponse(!event.shiftKey);
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      const isFindShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f';
+      if (isFindShortcut) {
+        const respPanelBody = document.getElementById('resp-panel-body');
+        const responseContentEl = document.getElementById('responseContent');
+        const selection = window.getSelection();
+        const activeEl = document.activeElement;
+        const selectionInResponse = !!(selection?.anchorNode && respPanelBody?.contains(selection.anchorNode));
+        const focusInResponse = !!(activeEl && respPanelBody?.contains(activeEl));
+        const canOpenResponseFind =
+          !!respPanelBody &&
+          !!responseContentEl &&
+          !responseContentEl.classList.contains('hidden') &&
+          respPanelBody.classList.contains('active') &&
+          (selectionInResponse || focusInResponse);
+
+        if (canOpenResponseFind) {
+          event.preventDefault();
+          showResponseFindWidget();
+          return;
+        }
+
+        const bodyModeEl = document.getElementById('bodyMode');
+        if (bodyModeEl?.value !== 'raw') {
+          return;
+        }
+        event.preventDefault();
+        switchTab('body');
+        showFindWidget();
+        return;
+      }
+
+      if (event.key === 'Escape' && isFindWidgetVisible) {
+        event.preventDefault();
+        hideFindWidget();
+        return;
+      }
+
+      if (event.key === 'Escape' && isResponseFindWidgetVisible) {
+        event.preventDefault();
+        hideResponseFindWidget();
       }
     });
     authTypeEl?.addEventListener('change', toggleAuthFields);
@@ -1115,16 +1582,10 @@ export function buildRequestEditorHtml(
       const isModifierPressed = event.metaKey || event.ctrlKey;
       if (!isModifierPressed || event.key.toLowerCase() !== 's') {
         const key = event.key.toLowerCase();
-        if (isModifierPressed && key === 'f') {
-          event.preventDefault();
-          switchTab('body');
-          findTextEl?.focus();
-          findTextEl?.select();
-          return;
-        }
         if (isModifierPressed && key === 'h') {
           event.preventDefault();
           switchTab('body');
+          showFindWidget();
           replaceTextEl?.focus();
           replaceTextEl?.select();
           return;
