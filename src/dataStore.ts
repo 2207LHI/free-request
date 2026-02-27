@@ -409,8 +409,31 @@ export class DataStore {
       collectionId: newCollectionId || sourceRequest.collectionId,
       lastStatus: undefined
     };
+    const newRequest = this.addRequestInternal(newRequestData);
 
-    return this.addRequestInternal(newRequestData);
+    if (!newCollectionId) {
+      const sourceIndex = this.requests.findIndex(r => r.id === sourceRequestId);
+      const newIndex = this.requests.findIndex(r => r.id === newRequest.id);
+      if (sourceIndex >= 0 && newIndex >= 0) {
+        this.requests.splice(newIndex, 1);
+        this.requests.splice(sourceIndex + 1, 0, newRequest);
+      }
+
+      if (sourceRequest.collectionId) {
+        const collection = this.collections.find(c => c.id === sourceRequest.collectionId);
+        if (collection) {
+          collection.requests = collection.requests.filter(reqId => reqId !== newRequest.id);
+          const sourceReqIndex = collection.requests.indexOf(sourceRequestId);
+          if (sourceReqIndex >= 0) {
+            collection.requests.splice(sourceReqIndex + 1, 0, newRequest.id);
+          } else {
+            collection.requests.push(newRequest.id);
+          }
+        }
+      }
+    }
+
+    return newRequest;
   }
 
   duplicateRequest(sourceRequestId: string, newCollectionId?: string): RequestModel {

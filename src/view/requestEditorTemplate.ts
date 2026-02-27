@@ -84,6 +84,62 @@ export function buildRequestEditorHtml(
     .toolbar { margin-bottom: 8px; display: flex; gap: 8px; }
     .toolbar-spacer { margin-left: auto; display: flex; align-items: center; gap: 8px; }
     .raw-body-wrap { position: relative; }
+    .fullscreen-panel {
+      position: fixed !important;
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+      z-index: 1200;
+      background: var(--vscode-editor-background, #ffffff);
+      border: 1px solid var(--vscode-input-border, #cfcfcf);
+      border-radius: 8px;
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .fullscreen-panel #body,
+    .fullscreen-panel #respBody {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      height: 100% !important;
+      overflow: auto !important;
+    }
+    .fullscreen-panel .raw-body-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .fullscreen-panel .response-body-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .fullscreen-panel #rawBodySection,
+    .fullscreen-panel #resp-panel-body {
+      min-height: 0;
+    }
+    .fullscreen-panel #jsonFindReplace,
+    .fullscreen-panel #respFindWidget {
+      flex-shrink: 0;
+    }
+    .fullscreen-panel .body-resize-handle {
+      margin-top: 6px;
+    }
+    .fullscreen-exit-btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+    }
     .find-replace-wrap {
       margin-bottom: 0;
       display: grid;
@@ -138,8 +194,9 @@ export function buildRequestEditorHtml(
     }
     input, select, textarea, button { font-family: inherit; font-size: 13px; }
     input, select, textarea { width: 100%; padding: 8px; border: 1px solid #cfcfcf; border-radius: 4px; box-sizing: border-box; }
-    textarea { min-height: 220px; resize: none; }
-    #body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; line-height: 1.5; }
+    textarea { resize: none; }
+    #body { min-height: 120px; height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; line-height: 1.5; }
+    #requestPrettyBody { min-height: 120px; height: 220px; max-height: none; }
     .body-resize-handle { height: 8px; margin-top: 4px; border-radius: 4px; background: linear-gradient(90deg, transparent 0%, #c9c9c9 20%, #c9c9c9 80%, transparent 100%); cursor: ns-resize; }
     .body-resize-handle:hover { background: linear-gradient(90deg, transparent 0%, #9e9e9e 20%, #9e9e9e 80%, transparent 100%); }
     table { width: 100%; border-collapse: collapse; }
@@ -181,11 +238,55 @@ export function buildRequestEditorHtml(
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
-      min-height: 100px;
-      max-height: 56vh;
+      min-height: 220px;
+      height: 320px;
+      max-height: 75vh;
       line-height: 1.5;
     }
     .response-empty { font-size: 12px; color: #666; }
+    #body,
+    #respBody,
+    #requestPrettyBody,
+    #respHeaders {
+      scrollbar-width: thin;
+      scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) transparent;
+    }
+    #body::-webkit-scrollbar,
+    #respBody::-webkit-scrollbar,
+    #requestPrettyBody::-webkit-scrollbar,
+    #respHeaders::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    #body::-webkit-scrollbar-thumb,
+    #respBody::-webkit-scrollbar-thumb,
+    #requestPrettyBody::-webkit-scrollbar-thumb,
+    #respHeaders::-webkit-scrollbar-thumb {
+      background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    #body::-webkit-scrollbar-thumb:hover,
+    #respBody::-webkit-scrollbar-thumb:hover,
+    #requestPrettyBody::-webkit-scrollbar-thumb:hover,
+    #respHeaders::-webkit-scrollbar-thumb:hover {
+      background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+      background-clip: content-box;
+    }
+    #body::-webkit-scrollbar-thumb:active,
+    #respBody::-webkit-scrollbar-thumb:active,
+    #requestPrettyBody::-webkit-scrollbar-thumb:active,
+    #respHeaders::-webkit-scrollbar-thumb:active {
+      background: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+      background-clip: content-box;
+    }
+    #body::-webkit-scrollbar-corner,
+    #respBody::-webkit-scrollbar-corner,
+    #requestPrettyBody::-webkit-scrollbar-corner,
+    #respHeaders::-webkit-scrollbar-corner {
+      background: transparent;
+    }
     .json-status { font-size: 12px; color: #666; }
     .json-status.error { color: #d32f2f; font-weight: 700; }
     .json-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); font-weight: 700; }
@@ -334,13 +435,16 @@ export function buildRequestEditorHtml(
         <option value="form-data" ${(request.bodyMode ?? 'raw') === 'form-data' ? 'selected' : ''}>form-data</option>
         <option value="x-www-form-urlencoded" ${(request.bodyMode ?? 'raw') === 'x-www-form-urlencoded' ? 'selected' : ''}>x-www-form-urlencoded</option>
       </select>
-      <div id="rawBodyActions" class="toolbar-spacer">
-        <button class="btn" id="formatJsonBtn" type="button">Format JSON</button>
+    </div>
+    <div id="rawBodyContainer">
+      <div id="rawBodyActions" class="toolbar">
+        <button class="btn" id="requestBodyFullscreenBtn" type="button">全屏</button>
         <button class="btn" id="copyRequestBodyBtn" type="button">Copy Body</button>
+        <button class="btn" id="requestBodyPrettyBtn" type="button">Pretty</button>
+        <button class="btn" id="requestBodyRawBtn" type="button">Raw</button>
         <span id="jsonStatus" class="json-status"></span>
       </div>
-    </div>
-    <div id="rawBodySection" class="raw-body-wrap">
+      <div id="rawBodySection" class="raw-body-wrap">
       <div id="jsonFindReplace" class="find-replace-wrap hidden">
         <div class="find-row">
           <input id="findText" class="find-input" type="text" placeholder="查找">
@@ -360,7 +464,9 @@ export function buildRequestEditorHtml(
         </div>
       </div>
       <textarea id="body" spellcheck="false" placeholder='请输入 JSON 请求体，例如 {"name":"free-request"}'>${escapeHtml(request.body || '')}</textarea>
+      <pre id="requestPrettyBody" class="response-pre hidden"></pre>
       <div id="bodyResizeHandle" class="body-resize-handle" title="拖动调整 JSON 输入框高度"></div>
+      </div>
     </div>
     <div id="kvBodySection" class="hidden">
       <div class="toolbar">
@@ -426,12 +532,14 @@ export function buildRequestEditorHtml(
 
       <section id="resp-panel-body" class="response-panel active">
         <div class="toolbar">
+          <button class="btn" id="responseBodyFullscreenBtn" type="button">全屏</button>
           <button class="btn" id="copyResponseBodyBtn" type="button">Copy Body</button>
           <button class="btn" id="respPrettyBtn" type="button">Pretty</button>
           <button class="btn" id="respRawBtn" type="button">Raw</button>
           <span id="respJsonHint" class="json-status"></span>
         </div>
         <div class="response-body-wrap">
+          <div id="respBodyResizeHandleTop" class="body-resize-handle" title="向上拖动可增大响应 Body 高度"></div>
           <div id="respFindWidget" class="find-replace-wrap response-find-widget hidden">
             <div class="find-row">
               <input id="respFindText" class="find-input" type="text" placeholder="查找响应内容">
@@ -444,6 +552,7 @@ export function buildRequestEditorHtml(
             </div>
           </div>
           <pre id="respBody" class="response-pre"></pre>
+          <div id="respBodyResizeHandle" class="body-resize-handle" title="拖动调整响应 Body 高度"></div>
         </div>
       </section>
       <section id="resp-panel-headers" class="response-panel">
@@ -466,10 +575,14 @@ export function buildRequestEditorHtml(
     let responseBodyPrettyText = '';
     let responseBodyIsJson = false;
     let responseBodyViewMode = 'pretty';
+    let requestBodyViewMode = 'raw';
     let isFindWidgetVisible = false;
     let isResponseFindWidgetVisible = false;
     let lastResponseFindQuery = '';
     let lastResponseFindIndex = -1;
+    let activeFullscreenTarget = null;
+    let activeFullscreenButton = null;
+    let activeFullscreenExitButton = null;
     let autocompleteTargetEl = null;
     let autocompleteTriggerIndex = -1;
     let autocompleteCandidates = [];
@@ -528,6 +641,50 @@ export function buildRequestEditorHtml(
       autocompleteQuery = '';
       autocompleteTriggerIndex = -1;
       autocompleteTargetEl = null;
+    }
+
+    function exitFullscreenPanel() {
+      if (!activeFullscreenTarget) {
+        return;
+      }
+
+      activeFullscreenTarget.classList.remove('fullscreen-panel');
+      if (activeFullscreenExitButton && activeFullscreenExitButton.parentElement) {
+        activeFullscreenExitButton.parentElement.removeChild(activeFullscreenExitButton);
+      }
+      if (activeFullscreenButton) {
+        activeFullscreenButton.textContent = '全屏';
+      }
+
+      activeFullscreenTarget = null;
+      activeFullscreenButton = null;
+      activeFullscreenExitButton = null;
+    }
+
+    function toggleFullscreenPanel(targetEl, buttonEl) {
+      if (!targetEl || !buttonEl) {
+        return;
+      }
+
+      if (activeFullscreenTarget === targetEl) {
+        exitFullscreenPanel();
+        return;
+      }
+
+      exitFullscreenPanel();
+      targetEl.classList.add('fullscreen-panel');
+      buttonEl.textContent = '退出全屏';
+
+      const exitBtn = document.createElement('button');
+      exitBtn.type = 'button';
+      exitBtn.className = 'btn fullscreen-exit-btn';
+      exitBtn.textContent = '退出全屏';
+      exitBtn.addEventListener('click', () => exitFullscreenPanel());
+      targetEl.appendChild(exitBtn);
+
+      activeFullscreenTarget = targetEl;
+      activeFullscreenButton = buttonEl;
+      activeFullscreenExitButton = exitBtn;
     }
 
     function getSelectedEnvVariables() {
@@ -1142,6 +1299,61 @@ export function buildRequestEditorHtml(
       jsonStatusEl.classList.toggle('error', !!isError);
     }
 
+    function updateRequestBodyButtons() {
+      const bodyModeEl = document.getElementById('bodyMode');
+      const bodyEl = document.getElementById('body');
+      const prettyBtn = document.getElementById('requestBodyPrettyBtn');
+      const rawBtn = document.getElementById('requestBodyRawBtn');
+      if (!bodyModeEl || !bodyEl || !prettyBtn || !rawBtn) {
+        return;
+      }
+
+      if (bodyModeEl.value !== 'raw') {
+        prettyBtn.disabled = true;
+        rawBtn.disabled = true;
+        return;
+      }
+
+      const text = bodyEl.value;
+      if (!text || text.trim() === '') {
+        prettyBtn.disabled = true;
+        rawBtn.disabled = true;
+        return;
+      }
+
+      try {
+        JSON.parse(text);
+      } catch {
+        prettyBtn.disabled = true;
+        rawBtn.disabled = true;
+        return;
+      }
+
+      prettyBtn.disabled = requestBodyViewMode === 'pretty';
+      rawBtn.disabled = requestBodyViewMode === 'raw';
+    }
+
+    function updateRequestBodyView() {
+      const bodyModeEl = document.getElementById('bodyMode');
+      const bodyEl = document.getElementById('body');
+      const prettyBodyEl = document.getElementById('requestPrettyBody');
+      const bodyResizeHandleEl = document.getElementById('bodyResizeHandle');
+      const jsonFindReplaceEl = document.getElementById('jsonFindReplace');
+      if (!bodyModeEl || !bodyEl || !prettyBodyEl || !bodyResizeHandleEl || !jsonFindReplaceEl) {
+        return;
+      }
+
+      const isRawMode = bodyModeEl.value === 'raw';
+      bodyEl.classList.remove('hidden');
+      prettyBodyEl.classList.add('hidden');
+      bodyResizeHandleEl.classList.remove('hidden');
+
+      if (isRawMode && requestBodyViewMode === 'pretty') {
+        isFindWidgetVisible = false;
+        jsonFindReplaceEl.classList.add('hidden');
+      }
+    }
+
     function validateRawJson(showSuccess) {
       const bodyModeEl = document.getElementById('bodyMode');
       const bodyEl = document.getElementById('body');
@@ -1171,7 +1383,7 @@ export function buildRequestEditorHtml(
       }
     }
 
-    function formatRawJsonBody() {
+    function prettyRawJsonBody() {
       const bodyModeEl = document.getElementById('bodyMode');
       const bodyEl = document.getElementById('body');
       if (!bodyModeEl || !bodyEl || bodyModeEl.value !== 'raw') {
@@ -1187,10 +1399,43 @@ export function buildRequestEditorHtml(
       try {
         const parsed = JSON.parse(text);
         bodyEl.value = JSON.stringify(parsed, null, 2);
-        updateJsonStatus('JSON 已格式化', false);
+        requestBodyViewMode = 'pretty';
+        updateJsonStatus('JSON 已美化', false);
+        updateRequestBodyView();
+        updateRequestBodyButtons();
       } catch (error) {
         const message = error instanceof Error ? error.message : 'JSON 格式错误';
         updateJsonStatus('JSON 错误：' + message, true);
+        updateRequestBodyView();
+        updateRequestBodyButtons();
+      }
+    }
+
+    function rawRawJsonBody() {
+      const bodyModeEl = document.getElementById('bodyMode');
+      const bodyEl = document.getElementById('body');
+      if (!bodyModeEl || !bodyEl || bodyModeEl.value !== 'raw') {
+        return;
+      }
+
+      const text = bodyEl.value;
+      if (!text || text.trim() === '') {
+        updateJsonStatus('', false);
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+        bodyEl.value = JSON.stringify(parsed);
+        requestBodyViewMode = 'raw';
+        updateJsonStatus('JSON 已压缩', false);
+        updateRequestBodyView();
+        updateRequestBodyButtons();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'JSON 格式错误';
+        updateJsonStatus('JSON 错误：' + message, true);
+        updateRequestBodyView();
+        updateRequestBodyButtons();
       }
     }
 
@@ -1210,6 +1455,8 @@ export function buildRequestEditorHtml(
       } else {
         jsonFindReplaceEl.classList.toggle('hidden', !isFindWidgetVisible);
       }
+      updateRequestBodyView();
+      updateRequestBodyButtons();
     }
 
     function showFindWidget() {
@@ -1767,11 +2014,11 @@ export function buildRequestEditorHtml(
 
       const storageKey = 'freeRequestBodyHeight:' + requestId;
       const savedHeight = Number(window.localStorage.getItem(storageKey) || '0');
-      if (Number.isFinite(savedHeight) && savedHeight >= 220) {
+      if (Number.isFinite(savedHeight) && savedHeight >= 120) {
         bodyEl.style.height = savedHeight + 'px';
       }
 
-      const minHeight = 220;
+      const minHeight = 120;
       const maxHeight = Math.floor(window.innerHeight * 0.8);
       let startY = 0;
       let startHeight = 0;
@@ -1808,6 +2055,64 @@ export function buildRequestEditorHtml(
       });
     }
 
+    function initResponseBodyResize() {
+      const respBodyEl = document.getElementById('respBody');
+      const resizeHandleEl = document.getElementById('respBodyResizeHandle');
+      const topResizeHandleEl = document.getElementById('respBodyResizeHandleTop');
+      if (!respBodyEl || !resizeHandleEl || !topResizeHandleEl) {
+        return;
+      }
+
+      const storageKey = 'freeRequestRespBodyHeight:' + requestId;
+      const savedHeight = Number(window.localStorage.getItem(storageKey) || '0');
+      if (Number.isFinite(savedHeight) && savedHeight >= 220) {
+        respBodyEl.style.height = savedHeight + 'px';
+      }
+
+      const minHeight = 220;
+      const maxHeight = Math.floor(window.innerHeight * 0.8);
+      let startY = 0;
+      let startHeight = 0;
+      let resizing = false;
+
+      const onMouseMove = (event, reverseDirection) => {
+        if (!resizing) {
+          return;
+        }
+        const offset = event.clientY - startY;
+        const delta = reverseDirection ? -offset : offset;
+        const nextHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + delta));
+        respBodyEl.style.height = nextHeight + 'px';
+      };
+
+      const attachResize = (handleEl, reverseDirection) => {
+        const onMouseMoveBound = (event) => onMouseMove(event, reverseDirection);
+        const onMouseUp = () => {
+          if (!resizing) {
+            return;
+          }
+          resizing = false;
+          document.body.style.userSelect = '';
+          window.localStorage.setItem(storageKey, String(respBodyEl.offsetHeight));
+          window.removeEventListener('mousemove', onMouseMoveBound);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        handleEl.addEventListener('mousedown', (event) => {
+          event.preventDefault();
+          resizing = true;
+          startY = event.clientY;
+          startHeight = respBodyEl.offsetHeight;
+          document.body.style.userSelect = 'none';
+          window.addEventListener('mousemove', onMouseMoveBound);
+          window.addEventListener('mouseup', onMouseUp);
+        });
+      };
+
+      attachResize(resizeHandleEl, false);
+      attachResize(topResizeHandleEl, true);
+    }
+
     (Array.isArray(initialParams) ? initialParams : []).forEach((row) => createRow('paramsBody', row, syncUrlFromParamsRows));
     (Array.isArray(initialHeaders) ? initialHeaders : []).forEach((row) => createRow('headersBody', row));
     (Array.isArray(initialBodyItems) ? initialBodyItems : []).forEach((row) => createRow('bodyItemsBody', row));
@@ -1820,6 +2125,7 @@ export function buildRequestEditorHtml(
       toggleBodyMode();
       toggleAuthFields();
       initBodyResize();
+      initResponseBodyResize();
     } catch (error) {
       console.error('Editor init error', error);
     }
@@ -1843,7 +2149,10 @@ export function buildRequestEditorHtml(
     const bodyModeEl = document.getElementById('bodyMode');
     const bodyEl = document.getElementById('body');
     const copyRequestBodyBtn = document.getElementById('copyRequestBodyBtn');
-    const formatJsonBtn = document.getElementById('formatJsonBtn');
+    const requestBodyPrettyBtn = document.getElementById('requestBodyPrettyBtn');
+    const requestBodyRawBtn = document.getElementById('requestBodyRawBtn');
+    const requestBodyFullscreenBtn = document.getElementById('requestBodyFullscreenBtn');
+    const responseBodyFullscreenBtn = document.getElementById('responseBodyFullscreenBtn');
     const findTextEl = document.getElementById('findText');
     const replaceTextEl = document.getElementById('replaceText');
     const findPrevBtn = document.getElementById('findPrevBtn');
@@ -1873,7 +2182,12 @@ export function buildRequestEditorHtml(
     saveAsBtn?.addEventListener('click', () => saveAsRequest());
     codeBtn?.addEventListener('click', openCodePreview);
     bodyModeEl?.addEventListener('change', toggleBodyMode);
-    bodyEl?.addEventListener('input', () => validateRawJson(false));
+    bodyEl?.addEventListener('input', () => {
+      requestBodyViewMode = 'raw';
+      validateRawJson(false);
+      updateRequestBodyView();
+      updateRequestBodyButtons();
+    });
     copyRequestBodyBtn?.addEventListener('click', () => {
       const text = bodyEl?.value || '';
       vscode.postMessage({
@@ -1884,7 +2198,16 @@ export function buildRequestEditorHtml(
         }
       });
     });
-    formatJsonBtn?.addEventListener('click', formatRawJsonBody);
+    requestBodyFullscreenBtn?.addEventListener('click', () => {
+      const rawBodyContainer = document.getElementById('rawBodyContainer');
+      toggleFullscreenPanel(rawBodyContainer, requestBodyFullscreenBtn);
+    });
+    responseBodyFullscreenBtn?.addEventListener('click', () => {
+      const responseBodyPanel = document.getElementById('resp-panel-body');
+      toggleFullscreenPanel(responseBodyPanel, responseBodyFullscreenBtn);
+    });
+    requestBodyPrettyBtn?.addEventListener('click', prettyRawJsonBody);
+    requestBodyRawBtn?.addEventListener('click', rawRawJsonBody);
     findPrevBtn?.addEventListener('click', () => findInBody(false));
     findNextBtn?.addEventListener('click', () => findInBody(true));
     replaceOneBtn?.addEventListener('click', replaceCurrentInBody);
@@ -1952,6 +2275,12 @@ export function buildRequestEditorHtml(
       if (event.key === 'Escape' && isResponseFindWidgetVisible) {
         event.preventDefault();
         hideResponseFindWidget();
+        return;
+      }
+
+      if (event.key === 'Escape' && activeFullscreenTarget) {
+        event.preventDefault();
+        exitFullscreenPanel();
       }
     });
     authTypeEl?.addEventListener('change', toggleAuthFields);
@@ -2026,6 +2355,8 @@ export function buildRequestEditorHtml(
 
     updateRequestPath();
     updateResponseBodyButtons();
+    updateRequestBodyView();
+    updateRequestBodyButtons();
 
     setupAutocompleteForElement(baseUrlEl);
     setupAutocompleteForElement(requestDescriptionEl);
