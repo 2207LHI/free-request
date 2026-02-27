@@ -539,7 +539,7 @@ export function buildRequestEditorHtml(
 
           const allOption = document.createElement('option');
           allOption.value = '';
-          allOption.textContent = 'All Variables';
+          allOption.textContent = 'NO ENVIRONMENTS';
           envGroupSelectEl.appendChild(allOption);
 
           (Array.isArray(envGroupOptions) ? envGroupOptions : []).forEach((item) => {

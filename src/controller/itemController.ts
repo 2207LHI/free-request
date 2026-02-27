@@ -88,7 +88,7 @@ export function registerItemCommands(deps: ItemControllerDeps): vscode.Disposabl
       if (newName) {
         const success = renameFunc(node.id, newName.trim());
         if (success) {
-          vscode.window.showInformationMessage(`成功重命名为：${newName}`);
+          vscode.window.setStatusBarMessage(`成功重命名为：${newName}`, 3000);
           deps.refreshCollections();
           deps.refreshEnvironments();
           deps.refreshHistory();

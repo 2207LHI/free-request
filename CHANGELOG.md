@@ -6,7 +6,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- 暂无
+- 将请求编辑器默认环境选项由 `All Variables` 调整为 `NO ENVIRONMENTS`
+- 选择 `NO ENVIRONMENTS` 时不再获取环境变量（不进行变量替换）
+- 提升扩展版本并增加 `onStartupFinished` 激活，修复 Remote SSH 场景下偶发命令未注册（如 `free-request.importData`）
+- 调整激活流程：先注册命令再初始化树视图，避免 Linux 远端树视图初始化异常导致所有命令不可用
+- 允许扩展在 `workspace/ui` 双宿主运行，降低 Remote SSH 下 VSIX 安装位置差异导致命令不可用的风险
+- 增加 `*` 激活与受限工作区支持（`untrustedWorkspaces`），进一步修复 Remote Linux 下命令未激活导致的 not found
 
 ## [0.1.0] - 2026-02-25
 

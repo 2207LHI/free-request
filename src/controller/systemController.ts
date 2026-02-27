@@ -13,14 +13,14 @@ export function registerSystemCommands(deps: SystemControllerDeps): vscode.Dispo
   return [
     vscode.commands.registerCommand('free-request.manualSave', async () => {
       await deps.dataStore.savePersistData();
-      vscode.window.showInformationMessage(`Free Request: 数据已手动保存到 ${deps.dataStore.getPersistPathFsPath()}`);
+      vscode.window.setStatusBarMessage(`Free Request: 数据已手动保存到 ${deps.dataStore.getPersistPathFsPath()}`, 5000);
     }),
 
     vscode.commands.registerCommand('free-request.refreshTree', () => {
       deps.refreshCollectionsWithRetry();
       deps.refreshEnvironments();
       deps.refreshHistory();
-      vscode.window.showInformationMessage('Free Request: 所有面板已刷新');
+      vscode.window.setStatusBarMessage('Free Request: 所有面板已刷新', 3000);
     }),
 
     vscode.commands.registerCommand('free-request.exportData', async () => {
@@ -43,7 +43,7 @@ export function registerSystemCommands(deps: SystemControllerDeps): vscode.Dispo
       const persistData = deps.dataStore.exportPersistData();
       const content = JSON.stringify(persistData, null, 2);
       await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(content));
-      vscode.window.showInformationMessage(`Free Request: 导出成功 -> ${saveUri.fsPath}`);
+      vscode.window.setStatusBarMessage(`Free Request: 导出成功 -> ${saveUri.fsPath}`, 5000);
     }),
 
     vscode.commands.registerCommand('free-request.importData', async () => {
@@ -92,7 +92,7 @@ export function registerSystemCommands(deps: SystemControllerDeps): vscode.Dispo
       deps.refreshCollectionsWithRetry();
       deps.refreshEnvironments();
       deps.refreshHistory();
-      vscode.window.showInformationMessage('Free Request: 导入成功，数据已刷新。');
+      vscode.window.setStatusBarMessage('Free Request: 导入成功，数据已刷新。', 5000);
     })
   ];
 }

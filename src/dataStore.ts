@@ -18,6 +18,7 @@ function generateUniqueId(prefix: string): string {
 
 export class DataStore {
   private static instance: DataStore;
+  private static readonly MAX_HISTORY_PERSIST_COUNT = 50;
   collections: CollectionModel[] = [];
   requests: RequestModel[] = [];
   environments: EnvModel[] = [];
@@ -25,6 +26,7 @@ export class DataStore {
   history: HistoryModel[] = [];
 
   private persistPath: vscode.Uri;
+  private persistDir: vscode.Uri;
   private _onDidLoadData = new vscode.EventEmitter<void>();
   readonly onDidLoadData = this._onDidLoadData.event;
   private _isDataLoaded = false;
@@ -37,9 +39,18 @@ export class DataStore {
     return this.persistPath.fsPath;
   }
 
-  private constructor(context: vscode.ExtensionContext) {
-    const persistFilePath = path.join(homedir(), '.cache', '.free_request', 'collections.json');
-    this.persistPath = vscode.Uri.file(persistFilePath);
+  private trimHistoryForPersistence() {
+    if (this.history.length > DataStore.MAX_HISTORY_PERSIST_COUNT) {
+      this.history = this.history.slice(0, DataStore.MAX_HISTORY_PERSIST_COUNT);
+      console.log(
+        `[History] Trimmed to ${DataStore.MAX_HISTORY_PERSIST_COUNT} entries for persistence`
+      );
+    }
+  }
+
+  private constructor(_context: vscode.ExtensionContext) {
+    this.persistDir = vscode.Uri.file(path.join(homedir(), '.cache', '.free-request'));
+    this.persistPath = vscode.Uri.joinPath(this.persistDir, 'collections.json');
 
     this.loadPersistData().then(() => {
       this._isDataLoaded = true;
@@ -90,12 +101,14 @@ export class DataStore {
       this.environments = Array.isArray(persistData.environments) ? persistData.environments : [];
       this.envGroups = Array.isArray(persistData.envGroups) ? persistData.envGroups : [];
       this.history = Array.isArray(persistData.history) ? persistData.history : [];
+      this.trimHistoryForPersistence();
 
       console.log(
         `Loaded: ${this.collections.length} collections, ${this.requests.length} requests, ${this.envGroups.length} env groups, ${this.environments.length} envs, ${this.history.length} history`
       );
-      vscode.window.showInformationMessage(
-        `Free Request: Loaded ${this.requests.length} requests, ${this.environments.length} env variables`
+      vscode.window.setStatusBarMessage(
+        `Free Request: Loaded ${this.requests.length} requests, ${this.environments.length} env variables`,
+        3000
       );
     } catch (error) {
       console.log(`Load data failed: ${(error as Error).message}`);
@@ -109,6 +122,8 @@ export class DataStore {
 
   async savePersistData() {
     try {
+      this.trimHistoryForPersistence();
+
       const persistData: PersistData = {
         collections: this.collections,
         requests: this.requests,
@@ -117,8 +132,7 @@ export class DataStore {
         history: this.history
       };
 
-      const dirPath = vscode.Uri.joinPath(this.persistPath, '..');
-      await vscode.workspace.fs.createDirectory(dirPath);
+      await vscode.workspace.fs.createDirectory(this.persistDir);
 
       const encoder = new TextEncoder();
       const content = encoder.encode(JSON.stringify(persistData, null, 2));
@@ -148,6 +162,7 @@ export class DataStore {
     this.environments = Array.isArray(persistData.environments) ? persistData.environments : [];
     this.envGroups = Array.isArray(persistData.envGroups) ? persistData.envGroups : [];
     this.history = Array.isArray(persistData.history) ? persistData.history : [];
+    this.trimHistoryForPersistence();
 
     this.validateRequestCollectionLinks();
     this.validateEnvGroupLinks();
@@ -488,9 +503,7 @@ export class DataStore {
       url
     };
     this.history.unshift(history);
-    if (this.history.length > 50) {
-      this.history = this.history.slice(0, 50);
-    }
+    this.trimHistoryForPersistence();
     this.savePersistData();
   }
 }

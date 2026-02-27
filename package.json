@@ -4,16 +4,18 @@
   "version": "0.0.1",
   "publisher": "cxwang",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.109.0"
   },
-  "main": "./out/extension.js",
-  "activationEvents": [
-    "onView:free-request-collections",
-    "onView:free-request-environments",
-    "onView:free-request-history",
-    "onCommand:free-request.newEnvGroup",
-    "onCommand:free-request.newEnv"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "extensionKind": [
+    "workspace",
+    "ui"
   ],
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -239,15 +241,18 @@
       "free-request-container": [
         {
           "id": "free-request-collections",
-          "name": "Collections"
+          "name": "Collections",
+          "icon": "media/icon.svg"
         },
         {
           "id": "free-request-environments",
-          "name": "Environments"
+          "name": "Environments",
+          "icon": "media/icon.svg"
         },
         {
           "id": "free-request-history",
-          "name": "History"
+          "name": "History",
+          "icon": "media/icon.svg"
         }
       ]
     }
@@ -257,7 +262,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "npm run compile && node --test out/test/**/*.test.js",
-    "package": "vsce package --allow-missing-repository"
+    "package": "vsce package --allow-missing-repository --allow-star-activation"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.6.2",

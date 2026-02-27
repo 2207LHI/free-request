@@ -114,7 +114,7 @@ export function registerCollectionCommands(deps: CollectionControllerDeps): vsco
       if (node?.type === 'request') {
         try {
           const newRequest = deps.dataStore.duplicateRequest(node.id);
-          vscode.window.showInformationMessage(`已复制请求：${newRequest.name}`);
+          vscode.window.setStatusBarMessage(`已复制请求：${newRequest.name}`, 3000);
           setTimeout(() => deps.refreshCollectionsWithRetry(), 800);
         } catch (error) {
           vscode.window.showErrorMessage(`复制请求失败：${(error as Error).message}`);
@@ -126,7 +126,7 @@ export function registerCollectionCommands(deps: CollectionControllerDeps): vsco
       if (node?.type === 'collection') {
         try {
           const newCollection = await deps.dataStore.duplicateCollection(node.id);
-          vscode.window.showInformationMessage(`已复制集合：${newCollection.name}`);
+          vscode.window.setStatusBarMessage(`已复制集合：${newCollection.name}`, 3000);
           setTimeout(() => deps.refreshCollectionsWithRetry(), 2000);
         } catch (error) {
           vscode.window.showErrorMessage(`复制集合失败：${(error as Error).message}`);

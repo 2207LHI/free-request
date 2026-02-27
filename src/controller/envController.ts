@@ -79,7 +79,7 @@ export function registerEnvironmentCommands(deps: EnvControllerDeps): vscode.Dis
         groupId
       });
 
-      vscode.window.showInformationMessage(`已创建环境变量：${newEnv.name}=${newEnv.value}`);
+      vscode.window.setStatusBarMessage(`已创建环境变量：${newEnv.name}=${newEnv.value}`, 3000);
       deps.refreshEnvironments();
     }),
 
@@ -121,7 +121,7 @@ export function registerEnvironmentCommands(deps: EnvControllerDeps): vscode.Dis
         });
 
         if (success) {
-          vscode.window.showInformationMessage(`已更新环境变量：${inputData.name}=${inputData.value}`);
+          vscode.window.setStatusBarMessage(`已更新环境变量：${inputData.name}=${inputData.value}`, 3000);
           deps.refreshEnvironments();
         } else {
           vscode.window.showErrorMessage('更新环境变量失败');
@@ -133,7 +133,7 @@ export function registerEnvironmentCommands(deps: EnvControllerDeps): vscode.Dis
       if (node?.type === 'env_group') {
         try {
           const newEnvGroup = await deps.dataStore.duplicateEnvGroup(node.id);
-          vscode.window.showInformationMessage(`已复制环境组：${newEnvGroup.name}`);
+          vscode.window.setStatusBarMessage(`已复制环境组：${newEnvGroup.name}`, 3000);
           setTimeout(() => deps.refreshEnvironments(), 800);
         } catch (error) {
           vscode.window.showErrorMessage(`复制环境组失败：${(error as Error).message}`);
@@ -145,7 +145,7 @@ export function registerEnvironmentCommands(deps: EnvControllerDeps): vscode.Dis
       if (node?.type === 'environment') {
         try {
           const newEnv = deps.dataStore.duplicateEnv(node.id);
-          vscode.window.showInformationMessage(`已复制环境变量：${newEnv.name}=${newEnv.value}`);
+          vscode.window.setStatusBarMessage(`已复制环境变量：${newEnv.name}=${newEnv.value}`, 3000);
           setTimeout(() => deps.refreshEnvironments(), 800);
         } catch (error) {
           vscode.window.showErrorMessage(`复制环境变量失败：${(error as Error).message}`);

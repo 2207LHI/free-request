@@ -457,62 +457,34 @@ let dataStore: DataStore;
 let collectionsTreeView: vscode.TreeView<BaseTreeNode> | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  dataStore = DataStore.getInstance(context);
+  try {
+    dataStore = DataStore.getInstance(context);
+    vscode.window.setStatusBarMessage('Free Request: 扩展已激活', 3000);
 
-  collectionsProvider = new CollectionsTreeProvider(dataStore);
-  environmentsProvider = new EnvironmentsTreeProvider(dataStore);
-  historyProvider = new HistoryTreeProvider(dataStore);
-
-  const requestDnDController = new RequestDragAndDropController(dataStore, () => collectionsProvider.refresh());
-  collectionsTreeView = vscode.window.createTreeView('free-request-collections', {
-    treeDataProvider: collectionsProvider,
-    dragAndDropController: requestDnDController,
-    canSelectMany: true
-  });
-  const envDisposable = vscode.window.registerTreeDataProvider('free-request-environments', environmentsProvider);
-  const histDisposable = vscode.window.registerTreeDataProvider('free-request-history', historyProvider);
-  
-  context.subscriptions.push(collectionsTreeView, envDisposable, histDisposable);
-
-  vscode.commands.executeCommand('setContext', 'free-request:activated', true);
-  vscode.commands.executeCommand('setContext', 'view:free-request-environments', true);
-
-  collectionsProvider.refresh();
-  environmentsProvider.refresh();
-  historyProvider.refresh();
-
-  setTimeout(() => {
-    environmentsProvider.refresh();
-    vscode.commands.executeCommand('workbench.action.refreshExplorer');
-  }, 100);
-
-  dataStore.onDidLoadData(() => {
-    setTimeout(() => {
-      collectionsProvider.refreshWithRetry();
-      environmentsProvider.refresh();
-      historyProvider.refresh();
-    }, 300);
-  });
+  const refreshCollections = () => collectionsProvider?.refresh();
+  const refreshCollectionsWithRetry = () => collectionsProvider?.refreshWithRetry();
+  const refreshEnvironments = () => environmentsProvider?.refresh();
+  const refreshHistory = () => historyProvider?.refresh();
 
   const requestControllerDeps: RequestControllerDeps = {
     context,
     dataStore,
-    refreshCollections: () => collectionsProvider.refresh(),
-    refreshHistory: () => historyProvider.refresh(),
+    refreshCollections,
+    refreshHistory,
     showInputDialog: showCustomInputDialog
   };
 
   const envControllerDeps: EnvControllerDeps = {
     dataStore,
-    refreshEnvironments: () => environmentsProvider.refresh(),
+    refreshEnvironments,
     showInputDialog: showCustomInputDialog,
     showStepwiseInputDialog
   };
 
   const collectionControllerDeps: CollectionControllerDeps = {
     dataStore,
-    refreshCollections: () => collectionsProvider.refresh(),
-    refreshCollectionsWithRetry: () => collectionsProvider.refreshWithRetry(),
+    refreshCollections,
+    refreshCollectionsWithRetry,
     showInputDialog: showCustomInputDialog,
     showStepwiseInputDialog,
     openRequestEditor: (request: RequestModel) => openRequestEditor(request, requestControllerDeps)
@@ -520,17 +492,17 @@ export function activate(context: vscode.ExtensionContext) {
 
   const itemControllerDeps: ItemControllerDeps = {
     dataStore,
-    refreshCollections: () => collectionsProvider.refresh(),
-    refreshEnvironments: () => environmentsProvider.refresh(),
-    refreshHistory: () => historyProvider.refresh(),
+    refreshCollections,
+    refreshEnvironments,
+    refreshHistory,
     showInputDialog: showCustomInputDialog
   };
 
   const systemControllerDeps: SystemControllerDeps = {
     dataStore,
-    refreshCollectionsWithRetry: () => collectionsProvider.refreshWithRetry(),
-    refreshEnvironments: () => environmentsProvider.refresh(),
-    refreshHistory: () => historyProvider.refresh()
+    refreshCollectionsWithRetry,
+    refreshEnvironments,
+    refreshHistory
   };
 
   // 注册命令
@@ -541,6 +513,52 @@ export function activate(context: vscode.ExtensionContext) {
     ...registerEnvironmentCommands(envControllerDeps),
     ...registerSystemCommands(systemControllerDeps)
   );
+
+    try {
+      collectionsProvider = new CollectionsTreeProvider(dataStore);
+      environmentsProvider = new EnvironmentsTreeProvider(dataStore);
+      historyProvider = new HistoryTreeProvider(dataStore);
+
+    const requestDnDController = new RequestDragAndDropController(dataStore, refreshCollections);
+    collectionsTreeView = vscode.window.createTreeView('free-request-collections', {
+      treeDataProvider: collectionsProvider,
+      dragAndDropController: requestDnDController,
+      canSelectMany: true
+    });
+    const envDisposable = vscode.window.registerTreeDataProvider('free-request-environments', environmentsProvider);
+    const histDisposable = vscode.window.registerTreeDataProvider('free-request-history', historyProvider);
+
+    context.subscriptions.push(collectionsTreeView, envDisposable, histDisposable);
+
+    vscode.commands.executeCommand('setContext', 'free-request:activated', true);
+    vscode.commands.executeCommand('setContext', 'view:free-request-environments', true);
+
+    collectionsProvider.refresh();
+    environmentsProvider.refresh();
+    historyProvider.refresh();
+
+    setTimeout(() => {
+      environmentsProvider.refresh();
+      vscode.commands.executeCommand('workbench.action.refreshExplorer');
+    }, 100);
+
+    dataStore.onDidLoadData(() => {
+      setTimeout(() => {
+        collectionsProvider.refreshWithRetry();
+        environmentsProvider.refresh();
+        historyProvider.refresh();
+      }, 300);
+    });
+    } catch (error) {
+      const err = error as Error;
+      console.error('Free Request view init failed:', err);
+      vscode.window.showErrorMessage(`Free Request: 视图初始化失败（${err.message}），命令已降级注册。`);
+    }
+  } catch (error) {
+    const err = error as Error;
+    console.error('Free Request activate failed:', err);
+    vscode.window.showErrorMessage(`Free Request: 激活失败（${err.message}）。`);
+  }
 }
 
 export function deactivate() {

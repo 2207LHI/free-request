@@ -90,7 +90,7 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
       case 'envGroupFallbackNotice':
         if (!hasShownEnvFallbackNotice) {
           hasShownEnvFallbackNotice = true;
-          vscode.window.showWarningMessage('当前请求关联的环境组已不存在，已自动切换为 All Variables。');
+          vscode.window.showWarningMessage('当前请求关联的环境组已不存在，已自动切换为 NO ENVIRONMENTS。');
         }
         break;
       case 'saveRequest':
@@ -101,7 +101,7 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
         }
         await deps.dataStore.savePersistData();
         deps.refreshCollections();
-        vscode.window.showInformationMessage('请求已成功保存！');
+        vscode.window.setStatusBarMessage('请求已成功保存！', 3000);
         break;
       case 'renameRequestName': {
         const newName = typeof message.data?.name === 'string' ? message.data.name.trim() : '';
@@ -192,7 +192,7 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
         });
 
         deps.refreshCollections();
-        vscode.window.showInformationMessage(`已另存为新请求：${newRequest.name}`);
+        vscode.window.setStatusBarMessage(`已另存为新请求：${newRequest.name}`, 3000);
         await openRequestEditor(newRequest, deps);
         break;
       }
@@ -220,7 +220,7 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
           ? message.data.label.trim()
           : '内容';
         await vscode.env.clipboard.writeText(rawText);
-        vscode.window.showInformationMessage(`${label} 已复制到剪贴板`);
+        vscode.window.setStatusBarMessage(`${label} 已复制到剪贴板`, 3000);
         break;
       }
       case 'showCode': {
@@ -401,7 +401,7 @@ function showResponsePanel(
 function toEnvironmentMap(dataStore: DataStore, envGroupId?: string): Record<string, string> {
   const envList = envGroupId
     ? dataStore.environments.filter(env => env.groupId === envGroupId)
-    : dataStore.environments;
+    : [];
 
   return envList.reduce<Record<string, string>>((acc, env) => {
     acc[env.name] = env.value;
