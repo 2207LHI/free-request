@@ -513,7 +513,11 @@ function toEnvironmentMap(dataStore: DataStore, envGroupId?: string): Record<str
 }
 
 function resolveTemplateVariables(content: string, environmentMap: Record<string, string>): string {
-  return content.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (fullMatch, variableName: string) => {
+  const normalized = content
+    .replace(/%7B%7B/gi, '{{')
+    .replace(/%7D%7D/gi, '}}');
+
+  return normalized.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (fullMatch, variableName: string) => {
     if (Object.prototype.hasOwnProperty.call(environmentMap, variableName)) {
       return environmentMap[variableName];
     }

@@ -36,6 +36,48 @@ function stringifyResponseBody(data: unknown): string {
   }
 }
 
+function buildResponseBodyViews(data: unknown): { raw: string; pretty: string; isJson: boolean } {
+  if (typeof data === 'string') {
+    const raw = data;
+    const trimmed = data.trim();
+    if (!trimmed) {
+      return { raw, pretty: raw, isJson: false };
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        raw,
+        pretty: JSON.stringify(parsed, null, 2),
+        isJson: true
+      };
+    } catch {
+      return { raw, pretty: raw, isJson: false };
+    }
+  }
+
+  if (data === null || data === undefined) {
+    const raw = String(data ?? '');
+    return { raw, pretty: raw, isJson: false };
+  }
+
+  if (typeof data === 'object') {
+    try {
+      return {
+        raw: JSON.stringify(data),
+        pretty: JSON.stringify(data, null, 2),
+        isJson: true
+      };
+    } catch {
+      const fallback = String(data);
+      return { raw: fallback, pretty: fallback, isJson: false };
+    }
+  }
+
+  const raw = String(data);
+  return { raw, pretty: raw, isJson: false };
+}
+
 export function buildResponseHtml(
   response: AxiosResponse,
   durationMs: number,
@@ -43,11 +85,12 @@ export function buildResponseHtml(
   resolvedUrl: string
 ): string {
   const responseHeaders = escapeHtml(JSON.stringify(response.headers, null, 2));
-  const responseBodyRaw = typeof response.data === 'string' ? response.data : stringifyResponseBody(response.data);
-  const responseBodyPretty = stringifyResponseBody(response.data);
+  const responseBodyViews = buildResponseBodyViews(response.data);
+  const responseBodyRaw = responseBodyViews.raw;
+  const responseBodyPretty = responseBodyViews.pretty;
   const responseBodyRawEscaped = escapeHtml(responseBodyRaw);
   const responseBodyPrettyEscaped = escapeHtml(responseBodyPretty);
-  const isJsonLikeResponse = responseBodyRaw !== responseBodyPretty;
+  const isJsonLikeResponse = responseBodyViews.isJson;
 
   return `
 <!DOCTYPE html>
@@ -329,8 +372,12 @@ export function buildResponseHtml(
 
       const usePretty = hasPrettyView && bodyViewMode === 'pretty';
       const selectedText = usePretty ? responseBodyPretty : responseBodyRaw;
-      if (hasPrettyView) {
-        bodyEl.innerHTML = highlightJsonText(selectedText);
+      if (hasPrettyView && usePretty) {
+        try {
+          bodyEl.innerHTML = renderJsonValue(JSON.parse(selectedText), 0);
+        } catch {
+          bodyEl.textContent = selectedText;
+        }
       } else {
         bodyEl.textContent = selectedText;
       }
@@ -373,6 +420,50 @@ export function buildResponseHtml(
         }
         return '<span class="json-number">' + match + '</span>';
       });
+    }
+
+    function renderJsonPrimitive(value) {
+      if (value === null) {
+        return '<span class="json-null">null</span>';
+      }
+      if (typeof value === 'number') {
+        return '<span class="json-number">' + String(value) + '</span>';
+      }
+      if (typeof value === 'boolean') {
+        return '<span class="json-boolean">' + String(value) + '</span>';
+      }
+      return '<span class="json-string">"' + escapeHtmlForDisplay(String(value)) + '"</span>';
+    }
+
+    function renderJsonValue(value, indentLevel) {
+      const indentUnit = '  ';
+      const currentIndent = indentUnit.repeat(indentLevel);
+      const nextIndent = indentUnit.repeat(indentLevel + 1);
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          return '[]';
+        }
+        const items = value.map((item) => nextIndent + renderJsonValue(item, indentLevel + 1));
+        return '[\\n' + items.join(',\\n') + '\\n' + currentIndent + ']';
+      }
+
+      if (value && typeof value === 'object') {
+        const entries = Object.entries(value);
+        if (entries.length === 0) {
+          return '{}';
+        }
+        const lines = entries.map(([key, item]) => {
+          return (
+            nextIndent +
+            '<span class="json-key">"' + escapeHtmlForDisplay(key) + '"</span>: ' +
+            renderJsonValue(item, indentLevel + 1)
+          );
+        });
+        return '{\\n' + lines.join(',\\n') + '\\n' + currentIndent + '}';
+      }
+
+      return renderJsonPrimitive(value);
     }
 
     async function copyText(text) {

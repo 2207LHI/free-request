@@ -510,7 +510,7 @@ export function buildRequestEditorHtml(
     </div>
   </section>
 
-  <div class="hint">支持在 URL / Header / Body / Auth 中使用自定义环境变量。例如: {{HOST}}</div>
+  <div class="hint">支持在 Params / URL / Header / Body / Auth 中使用自定义环境变量。例如: {{HOST}}</div>
 
   <div id="envVarSuggest" class="var-suggest hidden"></div>
 
@@ -1185,9 +1185,21 @@ export function buildRequestEditorHtml(
 
     function buildFinalUrl(baseUrl, hash, paramsRows) {
       const enabledRows = paramsRows.filter((r) => r.enabled && r.key);
-      const searchParams = new URLSearchParams();
-      enabledRows.forEach((r) => searchParams.append(r.key, r.value));
-      const query = searchParams.toString();
+      const encodePartPreservingTemplates = (input) => {
+        const value = String(input ?? '');
+        const tokens = value.split(/(\{\{\s*[\w.-]+\s*\}\})/g);
+        return tokens
+          .map((segment) => {
+            if (/^\{\{\s*[\w.-]+\s*\}\}$/.test(segment)) {
+              return segment;
+            }
+            return encodeURIComponent(segment);
+          })
+          .join('');
+      };
+      const query = enabledRows
+        .map((r) => encodePartPreservingTemplates(r.key) + '=' + encodePartPreservingTemplates(r.value))
+        .join('&');
 
       if (!query) {
         return baseUrl + hash;
