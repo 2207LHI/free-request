@@ -2,6 +2,12 @@
 
 Free Request 是一个 VS Code 内置的轻量接口调试扩展，目标是提供接近 Postman 的核心请求体验（集合、环境变量、请求编辑、发送与响应查看），并保持更轻量的本地工作流。
 
+## 版本更新（0.0.2）
+
+- 请求编辑器默认环境切换为 `NO ENVIRONMENTS`，未选择环境时不进行变量替换
+- 修复 Remote SSH 下部分场景命令未注册/未激活问题（含 `onStartupFinished`、`*` 激活、`workspace/ui` 双宿主）
+- 优化激活顺序：先注册命令再初始化树视图，降低远端初始化异常导致的整体不可用风险
+
 ## 功能概览
 
 - Collections / Environments / History 三面板

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
-import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { DataStore } from '../dataStore';
 import type {
   KeyValueItem,
@@ -122,6 +122,12 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
     envGroupVariableMap
   );
   let hasShownEnvFallbackNotice = false;
+  let activeRequestAbortController: AbortController | undefined;
+
+  panel.onDidDispose(() => {
+    activeRequestAbortController?.abort();
+    activeRequestAbortController = undefined;
+  });
 
   panel.webview.onDidReceiveMessage(async (message) => {
     switch (message.command) {
@@ -201,19 +207,54 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
         await openRequestEditor(newRequest, deps);
         break;
       }
-      case 'sendRequest':
+      case 'sendRequest': {
+        if (activeRequestAbortController) {
+          break;
+        }
+
+        activeRequestAbortController = new AbortController();
+        panel.webview.postMessage({
+          command: 'requestSendingState',
+          data: { isSending: true }
+        });
+
         const sendResult = await sendRequest(
           deps.dataStore.requests.find(r => r.id === request.id) ?? request,
           deps,
-          { showResponsePanel: false }
+          {
+            showResponsePanel: false,
+            abortController: activeRequestAbortController
+          }
         );
+
         panel.webview.postMessage({
           command: 'requestResponse',
           data: sendResult
         });
+
+        activeRequestAbortController = undefined;
+        panel.webview.postMessage({
+          command: 'requestSendingState',
+          data: { isSending: false }
+        });
+
         deps.refreshCollections();
         deps.refreshHistory();
         break;
+      }
+      case 'cancelRequest': {
+        if (!activeRequestAbortController) {
+          break;
+        }
+        activeRequestAbortController.abort();
+        activeRequestAbortController = undefined;
+        panel.webview.postMessage({
+          command: 'requestSendingState',
+          data: { isSending: false }
+        });
+        vscode.window.setStatusBarMessage('请求已取消', 3000);
+        break;
+      }
       case 'copyText': {
         const rawText = typeof message.data?.text === 'string' ? message.data.text : '';
         if (!rawText) {
@@ -257,9 +298,10 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
 export async function sendRequest(
   request: RequestModel,
   deps: RequestControllerDeps,
-  options?: { showResponsePanel?: boolean }
+  options?: { showResponsePanel?: boolean; abortController?: AbortController }
 ): Promise<SendRequestResult> {
   let resolvedUrl = request.url;
+  let inProgressStatusBarMessage: vscode.Disposable | undefined;
   try {
     const environmentMap = toEnvironmentMap(deps.dataStore, request.envGroupId);
     resolvedUrl = resolveTemplateVariables(request.url, environmentMap);
@@ -276,7 +318,11 @@ export async function sendRequest(
       method: request.method,
       url: resolvedUrl,
       headers: resolvedHeaders,
-      validateStatus: () => true
+      validateStatus: () => true,
+      timeout: 0,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      signal: options?.abortController?.signal
     };
 
     if (authType === 'bearer') {
@@ -317,7 +363,9 @@ export async function sendRequest(
       }
     }
 
-    vscode.window.setStatusBarMessage(`正在发送 ${request.method} 请求到 ${resolvedUrl}...`, 5000);
+    inProgressStatusBarMessage = vscode.window.setStatusBarMessage(
+      `正在发送 ${request.method} 请求到 ${resolvedUrl}...`
+    );
     const startedAt = Date.now();
     const response: AxiosResponse = await axios(axiosConfig);
     const durationMs = Date.now() - startedAt;
@@ -343,7 +391,29 @@ export async function sendRequest(
     };
   } catch (error) {
     const err = error as Error;
-    vscode.window.showErrorMessage(`请求失败：${err.message}`);
+    const axiosErr = error as AxiosError;
+    const cancelled = axiosErr.code === 'ERR_CANCELED';
+    if (cancelled) {
+      vscode.window.setStatusBarMessage('请求已取消', 3000);
+      return {
+        ok: false,
+        status: 0,
+        statusText: '',
+        durationMs: 0,
+        responseSizeBytes: 0,
+        resolvedUrl,
+        bodyText: '',
+        headersText: '',
+        errorMessage: '请求已取消'
+      };
+    }
+
+    const timeoutLikeError = axiosErr.code === 'ECONNABORTED' || /timeout/i.test(err.message);
+    const message = timeoutLikeError
+      ? '请求超时或连接被中断，请稍后重试'
+      : err.message;
+
+    vscode.window.showErrorMessage(`请求失败：${message}`);
     deps.dataStore.updateRequestStatus(request.id, 0);
     deps.dataStore.addHistory(request.id, 0, resolvedUrl);
 
@@ -356,8 +426,10 @@ export async function sendRequest(
       resolvedUrl,
       bodyText: '',
       headersText: '',
-      errorMessage: err.message
+      errorMessage: message
     };
+  } finally {
+    inProgressStatusBarMessage?.dispose();
   }
 }
 

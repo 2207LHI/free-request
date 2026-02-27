@@ -576,6 +576,7 @@ export function buildRequestEditorHtml(
     let responseBodyIsJson = false;
     let responseBodyViewMode = 'pretty';
     let requestBodyViewMode = 'raw';
+    let isSendingRequest = false;
     let isFindWidgetVisible = false;
     let isResponseFindWidgetVisible = false;
     let lastResponseFindQuery = '';
@@ -641,6 +642,16 @@ export function buildRequestEditorHtml(
       autocompleteQuery = '';
       autocompleteTriggerIndex = -1;
       autocompleteTargetEl = null;
+    }
+
+    function setSendingState(isSending) {
+      isSendingRequest = !!isSending;
+      const sendBtn = document.getElementById('sendBtn');
+      if (!sendBtn) {
+        return;
+      }
+      sendBtn.textContent = isSendingRequest ? 'Cancel' : 'Send';
+      sendBtn.classList.toggle('btn-primary', !isSendingRequest);
     }
 
     function exitFullscreenPanel() {
@@ -2322,8 +2333,14 @@ export function buildRequestEditorHtml(
 
     const sendBtn = document.getElementById('sendBtn');
     sendBtn?.addEventListener('click', () => {
+      if (isSendingRequest) {
+        vscode.postMessage({ command: 'cancelRequest', data: { id: requestId } });
+        return;
+      }
+
       const ok = saveRequest();
       if (ok) {
+        setSendingState(true);
         setTimeout(() => {
           vscode.postMessage({ command: 'sendRequest', data: { id: requestId } });
         }, 120);
@@ -2357,6 +2374,7 @@ export function buildRequestEditorHtml(
     updateResponseBodyButtons();
     updateRequestBodyView();
     updateRequestBodyButtons();
+    setSendingState(false);
 
     setupAutocompleteForElement(baseUrlEl);
     setupAutocompleteForElement(requestDescriptionEl);
@@ -2378,6 +2396,10 @@ export function buildRequestEditorHtml(
     window.addEventListener('message', (event) => {
       const message = event.data;
       if (!message || message.command !== 'requestResponse') {
+        if (message && message.command === 'requestSendingState') {
+          setSendingState(!!message.data?.isSending);
+          return;
+        }
         if (message && message.command === 'requestNameUpdated' && typeof message.data?.name === 'string') {
           requestName = message.data.name;
           updateRequestPath();
@@ -2385,6 +2407,7 @@ export function buildRequestEditorHtml(
         }
         return;
       }
+      setSendingState(false);
       renderResponse(message.data || {});
     });
   </script>
