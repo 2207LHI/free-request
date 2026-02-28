@@ -1,7 +1,8 @@
 {
   "name": "free-request",
   "displayName": "Free Request",
-  "version": "0.0.5",
+  "description": "A lightweight API client in VS Code with Postman-like core features: Collections, Environments, request editing, and response viewing.",
+  "version": "0.0.6",
   "publisher": "cxwang",
   "engines": {
     "vscode": "^1.109.0"

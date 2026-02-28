@@ -6,6 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-02-28
+
+### Changed
+
+- 补充扩展 `description` 元数据，修复 Marketplace 搜索列表描述缺失问题
+- 发布新的 `0.0.6` VSIX 安装包
+
 ## [0.0.5] - 2026-02-28
 
 ### Added
