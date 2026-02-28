@@ -1,8 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VSIX_URL="https://github.com/WangChengXiang-carizon/free-request/releases/download/v0.0.5/free-request-0.0.5.vsix"
-VSIX_NAME="free-request-0.0.5.vsix"
+DEFAULT_VERSION="0.0.6"
+INPUT_VERSION="${1:-$DEFAULT_VERSION}"
+NORMALIZED_VERSION="${INPUT_VERSION#v}"
+
+if [[ "$NORMALIZED_VERSION" != [0-9]*.[0-9]*.[0-9]* ]]; then
+  echo "❌ Invalid version: $INPUT_VERSION"
+  echo "Usage: $0 [version]"
+  echo "Example: $0 0.0.6"
+  echo "Example: $0 v0.0.6"
+  exit 1
+fi
+
+VSIX_NAME="free-request-${NORMALIZED_VERSION}.vsix"
+VSIX_URL="https://github.com/WangChengXiang-carizon/free-request/releases/download/v${NORMALIZED_VERSION}/${VSIX_NAME}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
