@@ -6,6 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-02-28
+
+### Changed
+
+- 扩展最低兼容版本调整为 VS Code `1.80+`
+- 发布新的 `0.0.7` VSIX 安装包
+
 ## [0.0.6] - 2026-02-28
 
 ### Changed
