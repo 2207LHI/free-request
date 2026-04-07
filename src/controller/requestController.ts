@@ -110,17 +110,49 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
     'freeRequestEditor',
     tabTitle,
     vscode.ViewColumn.One,
-    { enableScripts: true, retainContextWhenHidden: true }
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(deps.context.extensionUri, 'media'),
+        vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules')
+      ]
+    }
   );
   registerRequestEditorPanel(request.id, panel);
 
   const envGroupOptions = buildEnvGroupOptions(deps.dataStore);
   const envGroupVariableMap = buildEnvGroupVariableMap(deps.dataStore);
+  const requestEditorScriptUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(deps.context.extensionUri, 'media', 'requestEditor.js')
+  ).toString();
+  const codeMirrorAssets = {
+    cssUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'lib', 'codemirror.css')
+    ).toString(),
+    coreUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'lib', 'codemirror.js')
+    ).toString(),
+    modeJavascriptUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'mode', 'javascript', 'javascript.js')
+    ).toString(),
+    modeXmlUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'mode', 'xml', 'xml.js')
+    ).toString(),
+    modeCssUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'mode', 'css', 'css.js')
+    ).toString(),
+    modeHtmlmixedUri: panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(deps.context.extensionUri, 'node_modules', 'codemirror', 'mode', 'htmlmixed', 'htmlmixed.js')
+    ).toString()
+  };
   panel.webview.html = renderRequestEditorHtml(
     request,
     collectionPath,
     envGroupOptions,
-    envGroupVariableMap
+    envGroupVariableMap,
+    requestEditorScriptUri,
+    codeMirrorAssets
   );
   let hasShownEnvFallbackNotice = false;
   let activeRequestAbortController: AbortController | undefined;

@@ -332,12 +332,13 @@
     "package": "vsce package --allow-missing-repository --allow-star-activation"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.6.2",
     "@types/node": "^16.18.126",
     "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.6.2",
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "axios": "^1.6.8"
+    "axios": "^1.6.8",
+    "codemirror": "^5.65.16"
   }
 }

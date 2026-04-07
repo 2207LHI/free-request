@@ -19,9 +19,25 @@ export function renderRequestEditorHtml(
   request: RequestModel,
   collectionPath?: string,
   envGroupOptions: EnvGroupOption[] = [],
-  envGroupVariableMap: EnvGroupVariableMap = {}
+  envGroupVariableMap: EnvGroupVariableMap = {},
+  requestEditorScriptUri = '',
+  codeMirrorAssets: {
+    cssUri?: string;
+    coreUri?: string;
+    modeJavascriptUri?: string;
+    modeXmlUri?: string;
+    modeCssUri?: string;
+    modeHtmlmixedUri?: string;
+  } = {}
 ): string {
-  return buildRequestEditorHtml(request, collectionPath, envGroupOptions, envGroupVariableMap);
+  return buildRequestEditorHtml(
+    request,
+    collectionPath,
+    envGroupOptions,
+    envGroupVariableMap,
+    requestEditorScriptUri,
+    codeMirrorAssets
+  );
 }
 
 export function renderResponseHtml(
