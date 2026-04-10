@@ -34,6 +34,8 @@ interface SendRequestResult {
   resolvedUrl: string;
   bodyText: string;
   headersText: string;
+  contentType?: string;
+  bodyBase64?: string;
   errorMessage?: string;
 }
 
@@ -268,6 +270,8 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
           break;
         }
 
+        const exportAfterResponse = !!message.data?.exportAfterResponse;
+
         activeRequestAbortController = new AbortController();
         panel.webview.postMessage({
           command: 'requestSendingState',
@@ -287,6 +291,10 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
           command: 'requestResponse',
           data: sendResult
         });
+
+        if (exportAfterResponse && sendResult.ok && sendResult.bodyText) {
+          await exportResponseResultToFile(sendResult, request.name);
+        }
 
         activeRequestAbortController = undefined;
         panel.webview.postMessage({
@@ -323,6 +331,35 @@ export async function openRequestEditor(request: RequestModel, deps: RequestCont
           : '内容';
         await vscode.env.clipboard.writeText(rawText);
         vscode.window.setStatusBarMessage(`${label} 已复制到剪贴板`, 3000);
+        break;
+      }
+      case 'exportResponseToFile': {
+        const bodyText = typeof message.data?.bodyText === 'string' ? message.data.bodyText : '';
+        if (!bodyText) {
+          vscode.window.showWarningMessage('当前没有可导出的响应内容');
+          break;
+        }
+
+        const requestName = typeof message.data?.requestName === 'string' && message.data.requestName.trim()
+          ? message.data.requestName.trim()
+          : request.name;
+        const detectedFormat = typeof message.data?.detectedFormat === 'string'
+          ? message.data.detectedFormat
+          : 'text';
+        const contentType = typeof message.data?.contentType === 'string'
+          ? message.data.contentType
+          : '';
+        const bodyBase64 = typeof message.data?.bodyBase64 === 'string'
+          ? message.data.bodyBase64
+          : undefined;
+
+        await exportResponseTextToFile({
+          requestName,
+          bodyText,
+          bodyBase64,
+          detectedFormat,
+          contentType
+        });
         break;
       }
       case 'showCode': {
@@ -384,6 +421,10 @@ export async function sendRequest(
       maxBodyLength: Infinity,
       signal: options?.abortController?.signal
     };
+
+    if ((options?.showResponsePanel ?? true) === false) {
+      axiosConfig.responseType = 'arraybuffer';
+    }
 
     if (authType === 'bearer') {
       const token = resolveTemplateVariables(request.authBearerToken ?? '', environmentMap).trim();
@@ -470,8 +511,19 @@ export async function sendRequest(
     const startedAt = Date.now();
     const response: AxiosResponse = await axios(axiosConfig);
     const durationMs = Date.now() - startedAt;
-    const responseSizeBytes = getResponseSizeBytes(response.data);
-    const responseBodyText = stringifyResponseBody(response.data);
+    const responseContentType = extractContentTypeFromAxiosHeaders(response.headers);
+    const isEditorFlow = (options?.showResponsePanel ?? true) === false;
+    const responseBytes = isEditorFlow ? toUint8Array(response.data) : undefined;
+    const responseSizeBytes = responseBytes
+      ? responseBytes.byteLength
+      : getResponseSizeBytes(response.data);
+    const responseBodyText = responseBytes
+      ? decodeResponseBodyForDisplay(responseBytes, responseContentType)
+      : stringifyResponseBody(response.data);
+    // 保留原始响应字节，导出文件时优先使用，避免二进制内容被文本编码损坏。
+    const responseBodyBase64 = responseBytes
+      ? Buffer.from(responseBytes).toString('base64')
+      : undefined;
     const responseHeadersText = JSON.stringify(response.headers, null, 2);
 
     deps.dataStore.updateRequestStatus(request.id, response.status);
@@ -501,7 +553,9 @@ export async function sendRequest(
       responseSizeBytes,
       resolvedUrl,
       bodyText: responseBodyText,
-      headersText: responseHeadersText
+      headersText: responseHeadersText,
+      contentType: responseContentType,
+      bodyBase64: responseBodyBase64
     };
   } catch (error) {
     const err = error as Error;
@@ -685,6 +739,260 @@ function stringifyResponseBody(data: unknown): string {
 function getResponseSizeBytes(data: unknown): number {
   const text = typeof data === 'string' ? data : stringifyResponseBody(data);
   return new TextEncoder().encode(text).length;
+}
+
+async function exportResponseResultToFile(result: SendRequestResult, requestName: string) {
+  const contentType = result.contentType || extractContentTypeFromHeadersText(result.headersText);
+  const detectedFormat = detectResponseFormat(result.bodyText, contentType);
+  await exportResponseTextToFile({
+    requestName,
+    bodyText: result.bodyText,
+    bodyBase64: result.bodyBase64,
+    detectedFormat,
+    contentType
+  });
+}
+
+async function exportResponseTextToFile(payload: {
+  requestName: string;
+  bodyText: string;
+  bodyBase64?: string;
+  detectedFormat: string;
+  contentType: string;
+}) {
+  const extension = inferResponseFileExtension(payload.detectedFormat, payload.contentType);
+  const timestamp = formatTimestampForFileName(new Date());
+  const safeRequestName = sanitizeFileName(payload.requestName);
+  const defaultFileName = `${safeRequestName}-${timestamp}.${extension}`;
+  const defaultUri = vscode.workspace.workspaceFolders?.[0]
+    ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, defaultFileName)
+    : undefined;
+
+  const saveUri = await vscode.window.showSaveDialog({
+    title: '导出响应文件',
+    defaultUri,
+    filters: {
+      文件: [extension],
+      所有文件: ['*']
+    }
+  });
+  if (!saveUri) {
+    return;
+  }
+
+  if (payload.bodyBase64) {
+    await vscode.workspace.fs.writeFile(saveUri, Uint8Array.from(Buffer.from(payload.bodyBase64, 'base64')));
+  } else {
+    await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(payload.bodyText));
+  }
+  vscode.window.setStatusBarMessage(`响应已导出：${saveUri.fsPath}`, 4000);
+}
+
+function extractContentTypeFromHeadersText(headersText: string): string {
+  try {
+    const parsed = JSON.parse(headersText) as Record<string, unknown>;
+    const contentType = parsed['content-type'] ?? parsed['Content-Type'];
+    return typeof contentType === 'string' ? contentType : '';
+  } catch {
+    return '';
+  }
+}
+
+function detectResponseFormat(bodyText: string, contentType: string): string {
+  const normalizedType = (contentType || '').toLowerCase();
+  if (normalizedType.includes('spreadsheetml.sheet')) {
+    return 'xlsx';
+  }
+  if (normalizedType.includes('ms-excel')) {
+    return 'xls';
+  }
+  if (normalizedType.includes('text/csv')) {
+    return 'csv';
+  }
+  if (normalizedType.includes('application/pdf')) {
+    return 'pdf';
+  }
+  if (normalizedType.includes('json') || normalizedType.includes('+json')) {
+    return 'json';
+  }
+  if (normalizedType.includes('xml')) {
+    return 'xml';
+  }
+  if (normalizedType.includes('html')) {
+    return 'html';
+  }
+
+  const trimmed = (bodyText || '').trim();
+  if (!trimmed) {
+    return 'text';
+  }
+
+  try {
+    JSON.parse(trimmed);
+    return 'json';
+  } catch {
+    // keep checking other formats
+  }
+
+  if (trimmed.startsWith('<?xml') || (trimmed.startsWith('<') && trimmed.endsWith('>'))) {
+    const lower = trimmed.toLowerCase();
+    if (lower.includes('<html')) {
+      return 'html';
+    }
+    return 'xml';
+  }
+
+  return 'text';
+}
+
+function inferResponseFileExtension(detectedFormat: string, contentType: string): string {
+  const normalizedType = (contentType || '').toLowerCase();
+  if (normalizedType.includes('spreadsheetml.sheet')) {
+    return 'xlsx';
+  }
+  if (normalizedType.includes('ms-excel')) {
+    return 'xls';
+  }
+  if (normalizedType.includes('text/csv')) {
+    return 'csv';
+  }
+  if (normalizedType.includes('application/pdf')) {
+    return 'pdf';
+  }
+  if (normalizedType.includes('application/zip')) {
+    return 'zip';
+  }
+
+  const normalizedDetected = (detectedFormat || '').toLowerCase();
+  if (normalizedDetected === 'xlsx') {
+    return 'xlsx';
+  }
+  if (normalizedDetected === 'xls') {
+    return 'xls';
+  }
+  if (normalizedDetected === 'csv') {
+    return 'csv';
+  }
+  if (normalizedDetected === 'pdf') {
+    return 'pdf';
+  }
+  if (normalizedDetected === 'json') {
+    return 'json';
+  }
+  if (normalizedDetected === 'xml') {
+    return 'xml';
+  }
+  if (normalizedDetected === 'html') {
+    return 'html';
+  }
+
+  if (normalizedType.includes('application/json') || normalizedType.includes('+json')) {
+    return 'json';
+  }
+  if (normalizedType.includes('xml')) {
+    return 'xml';
+  }
+  if (normalizedType.includes('html')) {
+    return 'html';
+  }
+  if (normalizedType.includes('application/octet-stream')) {
+    return 'bin';
+  }
+  return 'txt';
+}
+
+function extractContentTypeFromAxiosHeaders(headers: unknown): string {
+  if (!headers || typeof headers !== 'object') {
+    return '';
+  }
+
+  const source = headers as Record<string, unknown>;
+  const direct = source['content-type'] ?? source['Content-Type'];
+  if (typeof direct === 'string') {
+    return direct;
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (key.toLowerCase() === 'content-type' && typeof value === 'string') {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function toUint8Array(data: unknown): Uint8Array {
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+  if (ArrayBuffer.isView(data)) {
+    const view = data as ArrayBufferView;
+    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  }
+  if (typeof data === 'string') {
+    return new TextEncoder().encode(data);
+  }
+
+  return new TextEncoder().encode(stringifyResponseBody(data));
+}
+
+function decodeResponseBodyForDisplay(bytes: Uint8Array, contentType: string): string {
+  if (!bytes.length) {
+    return '';
+  }
+  if (isLikelyBinaryContentType(contentType)) {
+    return `[binary ${bytes.byteLength} bytes]`;
+  }
+
+  try {
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return `[binary ${bytes.byteLength} bytes]`;
+  }
+}
+
+function isLikelyBinaryContentType(contentType: string): boolean {
+  const normalized = (contentType || '').toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.startsWith('text/')) {
+    return false;
+  }
+
+  if (normalized.includes('json') || normalized.includes('xml') || normalized.includes('html') || normalized.includes('javascript')) {
+    return false;
+  }
+
+  return normalized.includes('octet-stream')
+    || normalized.includes('zip')
+    || normalized.includes('pdf')
+    || normalized.includes('spreadsheetml.sheet')
+    || normalized.includes('ms-excel')
+    || normalized.includes('image/')
+    || normalized.includes('audio/')
+    || normalized.includes('video/')
+    || normalized.includes('font/');
+}
+
+function sanitizeFileName(input: string): string {
+  const normalized = input.trim();
+  const sanitized = normalized.replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').replace(/\s+/g, '_');
+  return sanitized || 'response';
+}
+
+function formatTimestampForFileName(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${yyyy}${mm}${dd}-${hh}${mi}${ss}`;
 }
 
 function resolveKeyValueItems(

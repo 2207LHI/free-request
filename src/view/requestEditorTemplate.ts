@@ -431,6 +431,7 @@ export function buildRequestEditorHtml(
     <input type="text" id="baseUrl" class="url-input" value="${escapeHtml(request.url)}" placeholder="https://api.example.com/resource">
     <div class="action-group">
       <button class="btn btn-primary" id="sendBtn">Send</button>
+      <button class="btn" id="sendAndDownloadBtn">Send & Download</button>
       <button class="btn" id="codeBtn">Code</button>
     </div>
   </div>
@@ -618,6 +619,7 @@ export function buildRequestEditorHtml(
         <div class="toolbar">
           <button class="btn" id="responseBodyFullscreenBtn" type="button">全屏</button>
           <button class="btn" id="copyResponseBodyBtn" type="button">Copy Body</button>
+          <button class="btn" id="exportResponseFileBtn" type="button">导出文件</button>
           <button class="btn" id="respWrapToggleBtn" type="button">自动换行</button>
           <button class="btn" id="respPrettyBtn" type="button">Pretty</button>
           <button class="btn" id="respRawBtn" type="button">Raw</button>

@@ -27,6 +27,14 @@
     let responseBodyFormatMode = 'auto';
     let responseBodyDetectedFormat = 'text';
     let responseBodyContentType = '';
+    let latestResponseMeta = {
+      status: 0,
+      statusText: '',
+      resolvedUrl: '',
+      headersText: '',
+      bodyBase64: '',
+      contentType: ''
+    };
     let requestBodyViewMode = 'raw';
     let isSendingRequest = false;
     let isFindWidgetVisible = false;
@@ -313,11 +321,15 @@
     function setSendingState(isSending) {
       isSendingRequest = !!isSending;
       const sendBtn = document.getElementById('sendBtn');
+      const sendAndDownloadBtn = document.getElementById('sendAndDownloadBtn');
       if (!sendBtn) {
         return;
       }
       sendBtn.textContent = isSendingRequest ? 'Cancel' : 'Send';
       sendBtn.classList.toggle('btn-primary', !isSendingRequest);
+      if (sendAndDownloadBtn) {
+        sendAndDownloadBtn.disabled = isSendingRequest;
+      }
     }
 
     function exitFullscreenPanel() {
@@ -1639,18 +1651,20 @@
 
     function updateResponseBodyButtons() {
       const copyBtn = document.getElementById('copyResponseBodyBtn');
+      const exportBtn = document.getElementById('exportResponseFileBtn');
       const wrapBtn = document.getElementById('respWrapToggleBtn');
       const prettyBtn = document.getElementById('respPrettyBtn');
       const rawBtn = document.getElementById('respRawBtn');
       const formatSelectEl = document.getElementById('respBodyFormat');
       const hintEl = document.getElementById('respJsonHint');
-      if (!copyBtn || !wrapBtn || !prettyBtn || !rawBtn || !formatSelectEl || !hintEl) {
+      if (!copyBtn || !exportBtn || !wrapBtn || !prettyBtn || !rawBtn || !formatSelectEl || !hintEl) {
         return;
       }
 
       const hasBody = !!responseBodyRawText;
       const effectiveFormat = getEffectiveResponseFormat();
       copyBtn.disabled = !responseBodyRawText;
+      exportBtn.disabled = !responseBodyRawText;
       wrapBtn.disabled = !hasBody;
       wrapBtn.textContent = responseBodyWrapEnabled ? '自动换行' : '不换行';
       prettyBtn.disabled = !hasBody || responseBodyViewMode === 'pretty';
@@ -1766,10 +1780,18 @@
       timeEl.textContent = 'Time: ' + (payload.durationMs ?? 0) + ' ms';
       sizeEl.textContent = 'Size: ' + (payload.responseSizeBytes ?? 0) + ' B';
       urlEl.textContent = payload.resolvedUrl || '';
+      latestResponseMeta = {
+        status: Number(payload.status ?? 0),
+        statusText: String(payload.statusText || ''),
+        resolvedUrl: String(payload.resolvedUrl || ''),
+        headersText: String(payload.headersText || ''),
+        bodyBase64: String(payload.bodyBase64 || ''),
+        contentType: String(payload.contentType || '')
+      };
 
       if (payload.ok) {
         responseBodyRawText = payload.bodyText || '';
-        responseBodyContentType = extractContentTypeFromHeadersText(payload.headersText || '');
+        responseBodyContentType = payload.contentType || extractContentTypeFromHeadersText(payload.headersText || '');
         responseBodyDetectedFormat = detectResponseBodyFormat(responseBodyRawText, responseBodyContentType);
         responseBodyIsJson = responseBodyDetectedFormat === 'json';
         responseBodyPrettyText = buildResponsePrettyText(responseBodyRawText, responseBodyDetectedFormat);
@@ -2129,6 +2151,7 @@
     const authTypeEl = document.getElementById('authType');
     const pathRequestNameEl = document.getElementById('pathRequestName');
     const copyResponseBodyBtn = document.getElementById('copyResponseBodyBtn');
+    const exportResponseFileBtn = document.getElementById('exportResponseFileBtn');
     const respWrapToggleBtn = document.getElementById('respWrapToggleBtn');
     const respPrettyBtn = document.getElementById('respPrettyBtn');
     const respRawBtn = document.getElementById('respRawBtn');
@@ -2286,6 +2309,26 @@
         }
       });
     });
+    exportResponseFileBtn?.addEventListener('click', () => {
+      const text = responseBodyRawText || '';
+      if (!text) {
+        return;
+      }
+      vscode.postMessage({
+        command: 'exportResponseToFile',
+        data: {
+          requestName,
+          status: latestResponseMeta.status,
+          statusText: latestResponseMeta.statusText,
+          resolvedUrl: latestResponseMeta.resolvedUrl,
+          headersText: latestResponseMeta.headersText,
+          bodyText: text,
+          bodyBase64: latestResponseMeta.bodyBase64,
+          detectedFormat: responseBodyDetectedFormat,
+          contentType: latestResponseMeta.contentType || responseBodyContentType
+        }
+      });
+    });
     respWrapToggleBtn?.addEventListener('click', () => {
       responseBodyWrapEnabled = !responseBodyWrapEnabled;
       try {
@@ -2324,6 +2367,7 @@
     });
 
     const sendBtn = document.getElementById('sendBtn');
+    const sendAndDownloadBtn = document.getElementById('sendAndDownloadBtn');
     sendBtn?.addEventListener('click', () => {
       if (isSendingRequest) {
         vscode.postMessage({ command: 'cancelRequest', data: { id: requestId } });
@@ -2335,6 +2379,24 @@
         setSendingState(true);
         setTimeout(() => {
           vscode.postMessage({ command: 'sendRequest', data: { id: requestId } });
+        }, 120);
+      }
+    });
+
+    sendAndDownloadBtn?.addEventListener('click', () => {
+      if (isSendingRequest) {
+        vscode.postMessage({ command: 'cancelRequest', data: { id: requestId } });
+        return;
+      }
+
+      const ok = saveRequest();
+      if (ok) {
+        setSendingState(true);
+        setTimeout(() => {
+          vscode.postMessage({
+            command: 'sendRequest',
+            data: { id: requestId, exportAfterResponse: true }
+          });
         }, 120);
       }
     });
